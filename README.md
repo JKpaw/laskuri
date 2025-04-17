@@ -1,47 +1,103 @@
-# Svelte + TS + Vite
+# Invoicing Tool
 
-This template should help get you started developing with Svelte and TypeScript in Vite.
+This is a simple Tauri + Svelte + TypeScript desktop application for accounting invoice calculations. The application allows you to store customer information, calculate invoices, and maintain a customer listing.
 
-## Recommended IDE Setup
+## Features
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
+- Customer information management (name, company type)
+- Accounting hours tracking (total for a 3-month period)
+- Automatic invoice calculation with various parameters
+- Local data storage
+- Simple and user-friendly interface
 
-## Need an official Svelte framework?
+## Invoicing Logic
 
-Check out [SvelteKit](https://github.com/sveltejs/kit#readme), which is also powered by Vite. Deploy anywhere with its serverless-first approach and adapt to various platforms, with out of the box support for TypeScript, SCSS, and Less, and easily-added support for mdsvex, GraphQL, PostCSS, Tailwind CSS, and more.
+The application calculates invoices using the following logic:
 
-## Technical considerations
+### Basic Information
+- Customer details (name and company type)
+- Total hours spent on accounting over the last 3 months
+- Hourly rate
+- Fixed accounting software price
+- Salary payment price per employee
+- Number of employees
 
-**Why use this over SvelteKit?**
+### Invoice Calculation
+1. **Average Monthly Hours**: Total hours for three months divided by three
+2. **Subtotals**:
+   - Hourly rate × Average monthly hours
+   - Fixed accounting software price
+   - Salary payment price × Number of employees
 
-- It brings its own routing solution which might not be preferable for some users.
-- It is first and foremost a framework that just happens to use Vite under the hood, not a Vite app.
+3. **Margin Calculation**:
+   Margin is calculated using the following formula: subtotal × margin coefficient
+   
+   The margin coefficient is determined by the margin system:
+   - Minimum margin: 0.1
+   - Each of the following adds 0.1 to the margin coefficient:
+     - Foreign trade
+     - Cash operations
+     - E-commerce
+     - Import
+     - Assets in balance (machinery and equipment)
+     - Investments
+     - Limited Company (OY)
+     - VAT liability
+     - Manual bank statement, etc.
 
-This template contains as little as possible to get started with Vite + TypeScript + Svelte, while taking into account the developer experience with regards to HMR and intellisense. It demonstrates capabilities on par with the other `create-vite` templates and is a good starting point for beginners dipping their toes into a Vite + Svelte project.
+4. **Year-End Accounting Price**:
+   - Calculated as: Previous fiscal year's invoicing ÷ 12
+   - For sole traders: If the amount is less than €100, it's set to €100
+   - For limited companies: If the amount is less than €260, it's set to €260
 
-Should you later need the extended capabilities and extensibility provided by SvelteKit, the template has been structured similarly to SvelteKit so that it is easy to migrate.
+5. **Discounts/Campaigns**:
+   - Discount percentage is considered
+   - Discount validity period is checked
 
-**Why `global.d.ts` instead of `compilerOptions.types` inside `jsconfig.json` or `tsconfig.json`?**
+6. **Special Cases**:
+   - First month/promotional pricing
 
-Setting `compilerOptions.types` shuts out all other types not explicitly listed in the configuration. Using triple-slash references keeps the default TypeScript setting of accepting type information from the entire workspace, while also adding `svelte` and `vite/client` type information.
+7. **Final Price**:
+   - Price without VAT: subtotal + margin + year-end accounting price - discounts + possible additional fees
+   - Price with VAT: Price without VAT + (Price without VAT × VAT)
+   - Customer margin (can be calculated at the end)
 
-**Why include `.vscode/extensions.json`?**
+## Technical Details
 
-Other templates indirectly recommend extensions via the README, but this file allows VS Code to prompt the user to install the recommended extension upon opening the project.
+- **Frontend**: Svelte + TypeScript
+- **Application Framework**: Tauri
+- **Data Storage**: Local JSON file
+- **User Interface**: Custom UI components
 
-**Why enable `allowJs` in the TS template?**
+## Installation and Usage
 
-While `allowJs: false` would indeed prevent the use of `.js` files in the project, it does not prevent the use of JavaScript syntax in `.svelte` files. In addition, it would force `checkJs: false`, bringing the worst of both worlds: not being able to guarantee the entire codebase is TypeScript, and also having worse typechecking for the existing JavaScript. In addition, there are valid use cases in which a mixed codebase may be relevant.
+### Setting Up the Development Environment
 
-**Why is HMR not preserving my local component state?**
+```bash
+# Clone the repository
+git clone [repository-url]
+cd invoicing-tool
 
-HMR state preservation comes with a number of gotchas! It has been disabled by default in both `svelte-hmr` and `@sveltejs/vite-plugin-svelte` due to its often surprising behavior. You can read the details [here](https://github.com/rixo/svelte-hmr#svelte-hmr).
+# Install dependencies
+npm install
 
-If you have state that's important to retain within a component, consider creating an external store which would not be replaced by HMR.
-
-```ts
-// store.ts
-// An extremely simple external store
-import { writable } from 'svelte/store'
-export default writable(0)
+# Start development mode
+npm run tauri:dev
 ```
+
+### Building for Production
+
+```bash
+# Build production version
+npm run tauri:build
+```
+
+The production build can be found in the `src-tauri/target/release` folder.
+
+## File Structure
+
+[File structure details here]
+
+## License
+
+[License information]
