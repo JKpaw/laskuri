@@ -236,7 +236,7 @@
 <style>
   .customer-list {
     width: 100%;
-    max-width: 1300px; /* Increased to accommodate more columns */
+    max-width: 1300px;
     margin: 0 auto;
   }
 
@@ -245,6 +245,8 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: var(--spacing-lg);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 2px solid var(--primary-light);
   }
 
   h2 {
@@ -252,20 +254,27 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    color: var(--primary-dark);
   }
 
   .add-button {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    font-weight: 600;
+    transition: transform 0.1s ease;
+  }
+
+  .add-button:hover {
+    transform: translateY(-2px);
   }
 
   .table-container {
     overflow-x: auto;
     border-radius: var(--border-radius);
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-md);
     background-color: white;
-    margin-bottom: 20px; /* Add some space at the bottom */
+    margin-bottom: 20px;
   }
 
   table {
@@ -273,27 +282,37 @@
     margin-bottom: 0;
     border-collapse: separate;
     border-spacing: 0;
-    font-size: 0.85rem; /* Slightly smaller font to fit more content */
-    table-layout: auto;
+    font-size: 0.9rem;
   }
 
   th {
+    position: sticky;
+    top: 0;
     padding: 0.75rem 0.5rem;
     font-weight: 600;
     border-bottom: 2px solid var(--border-color);
     background-color: #f8f9fa;
     color: var(--text-light);
-    font-size: 0.85rem;
     text-transform: uppercase;
     white-space: nowrap;
+    letter-spacing: 0.5px;
+    transition: background-color 0.2s ease;
+  }
+
+  th:hover {
+    background-color: #f0f0f0;
   }
 
   tbody tr {
-    transition: background-color 0.2s ease;
+    transition: all 0.2s ease;
   }
 
   tr:hover td {
     background-color: rgba(0, 102, 204, 0.05);
+  }
+
+  tr:last-child td {
+    border-bottom: none;
   }
 
   td {
@@ -313,6 +332,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: 28px;
+    height: 28px;
+    background-color: var(--primary-light);
+    border-radius: 50%;
+    color: white;
+    font-size: 0.9rem;
   }
 
   .actions {
@@ -325,25 +350,64 @@
   .btn-sm {
     padding: 0.35rem 0.65rem;
     font-size: 0.8rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+  }
+
+  .btn-sm:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  .btn-sm.invoice {
+    background-color: var(--primary-color);
+    color: white;
+  }
+
+  .btn-sm.invoice:hover {
+    background-color: var(--primary-dark);
+  }
+
+  .btn-sm.edit {
+    background-color: #f8f9fa;
+    border: 1px solid #ddd;
+  }
+
+  .btn-sm.edit:hover {
+    background-color: #e9ecef;
+  }
+
+  .btn-sm.delete {
+    background-color: white;
+    color: var(--error-color);
+    border: 1px solid #ffcdd2;
+  }
+
+  .btn-sm.delete:hover {
+    background-color: #ffebee;
   }
 
   .tag {
     display: inline-block;
-    padding: 0.25rem 0.5rem;
+    padding: 0.25rem 0.65rem;
     border-radius: 20px;
     font-size: 0.8rem;
-    font-weight: 500;
+    font-weight: 600;
     text-align: center;
+    letter-spacing: 0.5px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   }
 
   .tag-blue {
     background-color: rgba(0, 102, 204, 0.1);
     color: var(--primary-color);
+    border: 1px solid rgba(0, 102, 204, 0.2);
   }
 
   .tag-green {
     background-color: rgba(40, 167, 69, 0.1);
     color: var(--success-color);
+    border: 1px solid rgba(40, 167, 69, 0.2);
   }
 
   .amount {
@@ -351,11 +415,17 @@
   }
 
   .subtotal-margin {
-    color: var(--text-color);
+    color: #155724;
+    background-color: rgba(40, 167, 69, 0.05);
+    padding: 3px 8px;
+    border-radius: 4px;
   }
 
   .year-end.active {
     color: var(--success-color);
+    background-color: rgba(40, 167, 69, 0.05);
+    padding: 3px 8px;
+    border-radius: 4px;
   }
 
   .year-end.inactive {
@@ -381,16 +451,18 @@
   .valid-date {
     background-color: rgba(40, 167, 69, 0.1);
     color: var(--success-color);
+    border: 1px solid rgba(40, 167, 69, 0.2);
   }
 
   .expired-date {
     background-color: rgba(220, 53, 69, 0.1);
     color: var(--error-color);
+    border: 1px solid rgba(220, 53, 69, 0.2);
   }
 
   .date-range {
     font-size: 0.8rem;
-    padding: 4px 6px;
+    padding: 4px 8px;
     border-radius: 4px;
     white-space: nowrap;
     display: block;
@@ -411,6 +483,7 @@
     border: 1px solid rgba(108, 117, 125, 0.2);
   }
 
+  /* States */
   .loading-state,
   .error-state,
   .empty-state {
@@ -422,13 +495,13 @@
   }
 
   .spinner {
-    width: 40px;
-    height: 40px;
-    border: 3px solid rgba(0, 102, 204, 0.1);
+    width: 50px;
+    height: 50px;
+    border: 4px solid rgba(0, 102, 204, 0.1);
     border-top-color: var(--primary-color);
     border-radius: 50%;
     animation: spinner 0.8s linear infinite;
-    margin: 0 auto 1rem;
+    margin: 0 auto 1.5rem;
   }
 
   @keyframes spinner {
@@ -438,23 +511,31 @@
   }
 
   .empty-icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
+    font-size: 3.5rem;
+    margin-bottom: 1.5rem;
     opacity: 0.5;
+    color: var(--primary-color);
   }
 
   .error-icon {
-    font-size: 2rem;
+    font-size: 2.5rem;
     margin-bottom: 1rem;
     color: var(--error-color);
   }
 
+  .empty {
+    color: var(--text-light);
+    font-size: 1.1rem;
+    margin-bottom: 1.5rem;
+  }
+
   .retry-btn {
-    margin-top: 1rem;
+    margin-top: 1.5rem;
   }
 
   .error {
     color: var(--error-color);
+    font-weight: 500;
   }
 
   .icon {
@@ -463,5 +544,24 @@
 
   .text-right {
     text-align: right;
+  }
+
+  /* Responsiivisuus taulukossa - näkyy paremmin pienemmilläkin näytöillä */
+  @media (max-width: 1200px) {
+    th,
+    td {
+      padding: 0.5rem 0.4rem;
+      font-size: 0.85rem;
+    }
+
+    .actions {
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .btn-sm {
+      padding: 0.3rem 0.5rem;
+      font-size: 0.75rem;
+    }
   }
 </style>

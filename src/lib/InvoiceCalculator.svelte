@@ -301,11 +301,20 @@
         <div class="final-prices">
           <div class="detail-row highlight subtotal-margin">
             <span>Subtotal + Margin:</span>
-            <span>{formatCurrency(invoice.subtotals.totalSubtotal + invoice.marginAmount)}</span>
+            <span
+              >{formatCurrency(
+                invoice.subtotals.totalSubtotal + invoice.marginAmount
+              )}</span
+            >
           </div>
           <div class="detail-row subtotal-margin-vat">
             <span>Subtotal + Margin with VAT:</span>
-            <span>{formatCurrency((invoice.subtotals.totalSubtotal + invoice.marginAmount) * (1 + vatRate))}</span>
+            <span
+              >{formatCurrency(
+                (invoice.subtotals.totalSubtotal + invoice.marginAmount) *
+                  (1 + vatRate)
+              )}</span
+            >
           </div>
           <div class="detail-row highlight">
             <span>Total Price without VAT:</span>
@@ -334,59 +343,105 @@
 </div>
 
 <style>
+  /* InvoiceCalculator.svelte - tyylimäärittelyjen parannukset */
+
   .invoice-calculator {
-    max-width: 800px;
+    max-width: 850px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 25px;
     background-color: #f9f9f9;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   }
 
   h2 {
-    margin-bottom: 20px;
-    color: #333;
+    margin-bottom: 25px;
+    color: var(--primary-dark);
     border-bottom: 2px solid #0066cc;
-    padding-bottom: 10px;
+    padding-bottom: 12px;
+    font-size: 1.6rem;
+    letter-spacing: -0.5px;
   }
 
   h3 {
-    margin: 20px 0 10px;
+    margin: 22px 0 15px;
     color: #0066cc;
-    font-size: 1.2rem;
+    font-size: 1.3rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    letter-spacing: -0.3px;
   }
 
   h4 {
-    margin: 10px 0;
-    font-size: 1rem;
+    margin: 12px 0;
+    font-size: 1.05rem;
+    color: #444;
   }
 
   section {
-    margin-bottom: 25px;
-    padding: 15px;
+    margin-bottom: 30px;
+    padding: 20px;
     background-color: white;
-    border-radius: 6px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    border-left: 3px solid #e6e6e6;
+    transition:
+      box-shadow 0.3s ease,
+      transform 0.3s ease;
+  }
+
+  section:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+  }
+
+  .hours-section {
+    border-left-color: #9ec5fe;
+  }
+
+  .subtotal-section {
+    border-left-color: #b6e4d4;
+  }
+
+  .margin-section {
+    border-left-color: #ffd97d;
+  }
+
+  .year-end-section {
+    border-left-color: #adb5bd;
+  }
+
+  .discount-section {
+    border-left-color: #f8d7da;
+  }
+
+  .special-cases {
+    border-left-color: #d1c4e9;
+  }
+
+  .final-price {
+    border-left-color: #0066cc;
+    background-color: #f8f9fa;
   }
 
   .validity-banners {
     display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
+    gap: 15px;
+    margin-bottom: 25px;
     flex-wrap: wrap;
   }
 
   .validity-banner {
     flex: 1;
-    padding: 10px 15px;
-    border-radius: 6px;
+    min-width: 250px;
+    padding: 12px 18px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     font-weight: 500;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   }
 
   .validity-banner.valid {
@@ -401,14 +456,19 @@
   }
 
   .validity-banner .label {
-    font-weight: bold;
+    font-weight: 600;
   }
 
   .detail-row {
     display: flex;
     justify-content: space-between;
-    padding: 8px 0;
+    padding: 10px 0;
     border-bottom: 1px dashed #eee;
+    transition: background-color 0.2s ease;
+  }
+
+  .detail-row:hover {
+    background-color: #f8f9fa;
   }
 
   .detail-row:last-child {
@@ -416,47 +476,54 @@
   }
 
   .highlight {
-    font-weight: bold;
+    font-weight: 600;
     background-color: #f0f7ff;
-    padding: 10px;
-    border-radius: 4px;
+    padding: 12px;
+    border-radius: 6px;
     margin: 5px 0;
   }
 
   .subtotal-margin-vat {
-    font-weight: bold;
+    font-weight: 600;
     background-color: #e6f7ff;
-    padding: 10px;
-    border-radius: 4px;
+    padding: 12px;
+    border-radius: 6px;
     margin: 5px 0;
   }
 
   .expired-tag {
     background-color: #dc3545;
     color: white;
-    padding: 3px 8px;
+    padding: 4px 10px;
     border-radius: 20px;
-    font-size: 0.7rem;
-    font-weight: bold;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 10px;
   }
 
   .expired-note {
     display: block;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     color: #6c757d;
     font-style: italic;
-    margin-top: 3px;
+    margin-top: 5px;
   }
 
   .valid-date {
     color: #28a745;
     font-weight: 500;
+    padding: 3px 8px;
+    background-color: rgba(40, 167, 69, 0.07);
+    border-radius: 4px;
   }
 
   .expired-date {
     color: #dc3545;
     text-decoration: line-through;
     opacity: 0.8;
+    padding: 3px 8px;
+    background-color: rgba(220, 53, 69, 0.07);
+    border-radius: 4px;
   }
 
   .active-discount {
@@ -465,62 +532,144 @@
 
   .expired-discount {
     border-left: 4px solid #dc3545;
-    opacity: 0.9;
+    opacity: 0.95;
   }
 
   .margin-factors ul {
     list-style-type: none;
     padding-left: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 15px;
   }
 
   .margin-factors li {
     margin-bottom: 5px;
-    padding: 5px 10px;
+    padding: 6px 12px;
     background-color: #f0f0f0;
-    border-radius: 4px;
+    border-radius: 20px;
     display: inline-block;
-    margin-right: 5px;
+    font-size: 0.9rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   }
 
   .base-margin {
     background-color: #e6f7ff;
+    border: 1px solid #d1e9ff;
+    font-weight: 600;
   }
 
   .calculation-summary {
-    margin: 15px 0;
+    margin: 18px 0;
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
   }
 
   .formula,
   .values {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 5px;
+    margin-bottom: 10px;
+    font-family: "Courier New", monospace;
   }
 
   .formula span,
   .values span {
     flex: 1;
     text-align: center;
+    padding: 5px;
+    font-size: 0.95rem;
+  }
+
+  .formula span {
+    font-weight: 600;
+    color: #555;
+  }
+
+  .values span {
+    color: #0066cc;
   }
 
   .final-prices {
-    margin-top: 20px;
+    margin-top: 25px;
     border-top: 2px solid #0066cc;
     padding-top: 15px;
   }
 
   .total {
-    font-size: 1.2rem;
-    font-weight: bold;
+    font-size: 1.25rem;
+    font-weight: 700;
     color: #0066cc;
-    padding: 15px 10px;
+    padding: 18px 15px;
     background-color: #e6f7ff;
-    border-radius: 4px;
-    margin: 10px 0;
+    border-radius: 8px;
+    margin: 15px 0;
+    box-shadow: 0 2px 8px rgba(0, 102, 204, 0.1);
+    letter-spacing: -0.5px;
   }
 
   .customer-margin {
     color: #28a745;
     font-style: italic;
+    font-weight: 600;
+    padding: 8px 12px;
+    background-color: rgba(40, 167, 69, 0.07);
+    border-radius: 6px;
+    margin-top: 10px;
+  }
+
+  /* Lisää animaatiota ja korostuksia laskurin komponenteille */
+  @keyframes highlight-pulse {
+    0% {
+      background-color: rgba(0, 102, 204, 0.1);
+    }
+    50% {
+      background-color: rgba(0, 102, 204, 0.2);
+    }
+    100% {
+      background-color: rgba(0, 102, 204, 0.1);
+    }
+  }
+
+  .detail-row.highlight:hover {
+    animation: highlight-pulse 1.5s infinite;
+  }
+
+  /* Responsiiviset tyylit */
+  @media (min-width: 1200px) {
+    .invoice-calculator {
+      padding: 30px;
+    }
+
+    .calculation-details {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .final-price {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .validity-banner {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 5px;
+    }
+
+    .detail-row {
+      flex-direction: column;
+      padding: 12px 0;
+    }
+
+    .detail-row span:last-child {
+      margin-top: 5px;
+      font-weight: 600;
+    }
   }
 </style>

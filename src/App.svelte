@@ -336,7 +336,7 @@
   <div class="page-content">
     {#if !isAddingCustomer && !isEditingCustomer && !showingInvoice}
       <div class="container main-layout">
-        <div class="main-container">
+        <div class="main-container full-width">
           <div class="customer-list-container card">
             <CustomerList
               onSelectCustomer={handleSelectCustomer}
@@ -344,12 +344,12 @@
               onShowInvoice={handleShowInvoice}
             />
           </div>
-          <div class="side-panel">
-            <div class="card">
-              <StorageLocationSelector
-                onLocationUpdate={handleStorageLocationUpdate}
-              />
-            </div>
+
+          <!-- Storage location siirretty listauksen alle -->
+          <div class="storage-location-container card">
+            <StorageLocationSelector
+              onLocationUpdate={handleStorageLocationUpdate}
+            />
           </div>
         </div>
       </div>
@@ -399,6 +399,8 @@
 </main>
 
 <style>
+  /* App.svelte - tyylimäärittelyjen parannukset */
+
   :global(body) {
     margin: 0;
     padding: 0;
@@ -406,6 +408,7 @@
       Helvetica, Arial, sans-serif;
     background-color: #f5f5f5;
     color: #333;
+    overflow-x: hidden; /* Estää horisontaalisen vierityksen */
   }
 
   main {
@@ -416,81 +419,94 @@
   }
 
   header {
-    background-color: #0066cc;
+    background: linear-gradient(135deg, #0066cc 0%, #004c99 100%);
     color: white;
-    padding: 1rem 2rem;
-    text-align: center;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 1.5rem 2rem 1rem;
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
   }
 
   header h1 {
     margin: 0;
-    font-size: 2rem;
+    font-size: 2.2rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
   }
 
   header p {
     margin: 0.5rem 0 0;
-    opacity: 0.8;
+    opacity: 0.85;
+    font-size: 1.1rem;
   }
 
   .breadcrumbs {
-    margin-top: 0.5rem;
+    margin-top: 1rem;
+    background-color: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.5rem;
   }
 
   .breadcrumbs ol {
     list-style: none;
     display: flex;
+    flex-wrap: wrap;
     justify-content: center;
     padding: 0;
-    margin: 0.5rem 0 0;
+    margin: 0;
   }
 
   .breadcrumbs li {
     display: inline-flex;
     align-items: center;
+    margin: 0.25rem 0;
   }
 
   .breadcrumbs li:not(:last-child)::after {
     content: "›";
     margin: 0 8px;
     color: rgba(255, 255, 255, 0.7);
+    font-size: 1.2rem;
   }
 
   .breadcrumbs button,
   .breadcrumbs span {
-    color: rgba(255, 255, 255, 0.8);
+    color: rgba(255, 255, 255, 0.9);
     text-decoration: none;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.9rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.95rem;
     background: none;
     border: none;
     cursor: pointer;
+    transition: all 0.2s ease;
   }
 
   .breadcrumbs button:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(255, 255, 255, 0.15);
+    transform: translateY(-1px);
   }
 
   .breadcrumbs .active {
     color: white;
     font-weight: bold;
+    background-color: rgba(255, 255, 255, 0.2);
   }
 
   .breadcrumbs button.breadcrumb-link {
-    color: rgba(255, 255, 255, 0.8);
-    text-decoration: underline;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.9);
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.95rem;
     background: none;
     border: none;
     cursor: pointer;
     font-family: inherit;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   .breadcrumbs button.breadcrumb-link:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(255, 255, 255, 0.15);
   }
 
   .breadcrumbs button.breadcrumb-link:focus {
@@ -501,7 +517,7 @@
   .breadcrumbs button.breadcrumb-link.active {
     color: white;
     font-weight: bold;
-    text-decoration: none;
+    background-color: rgba(255, 255, 255, 0.2);
   }
 
   .loading-overlay {
@@ -510,21 +526,23 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(255, 255, 255, 0.8);
+    background-color: rgba(255, 255, 255, 0.85);
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     z-index: 1000;
+    backdrop-filter: blur(3px);
   }
 
   .spinner {
-    width: 40px;
-    height: 40px;
+    width: 50px;
+    height: 50px;
     border-radius: 50%;
     border: 4px solid #f3f3f3;
     border-top: 4px solid #0066cc;
     animation: spin 1s linear infinite;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
   }
 
   @keyframes spin {
@@ -540,12 +558,13 @@
     background-color: #ffebee;
     color: #c62828;
     padding: 0.75rem 1rem;
-    margin: 1rem;
-    border-radius: 4px;
+    margin: 0 1rem 1rem;
+    border-radius: 8px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-left: 4px solid #c62828;
   }
 
   .error-banner .container {
@@ -560,6 +579,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    font-weight: 500;
   }
 
   .error-banner button.btn-close {
@@ -568,11 +588,21 @@
     color: #c62828;
     font-size: 1.2rem;
     cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s ease;
+  }
+
+  .error-banner button.btn-close:hover {
+    background-color: rgba(198, 40, 40, 0.1);
   }
 
   footer {
     margin-top: auto;
-    padding: 1rem;
+    padding: 1.25rem;
     background-color: #f0f0f0;
     text-align: center;
     border-top: 1px solid #ddd;
@@ -586,32 +616,39 @@
   }
 
   .invoice-view {
-    padding: 20px;
+    padding: 25px;
     max-width: 1000px;
     margin: 0 auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
   }
 
   .actions {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 20px;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
   }
 
   button {
-    padding: 8px 16px;
+    padding: 10px 18px;
     background-color: #f0f0f0;
     border: none;
-    border-radius: 4px;
+    border-radius: 6px;
     cursor: pointer;
-    font-weight: bold;
-    transition: background-color 0.2s;
+    font-weight: 600;
+    transition: all 0.2s ease;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   }
 
   button:hover {
     background-color: #e0e0e0;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   }
 
   button.primary {
@@ -619,9 +656,18 @@
     color: white;
   }
 
+  button.primary:hover {
+    background-color: #0055b3;
+  }
+
   button.secondary {
     background-color: #f0f0f0;
     color: #333;
+    border: 1px solid #ddd;
+  }
+
+  button.secondary:hover {
+    background-color: #e6e6e6;
   }
 
   .icon {
@@ -630,52 +676,112 @@
 
   .keyboard-shortcuts-info {
     text-align: center;
-    margin-top: 1rem;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
     color: #666;
+    background-color: #f9f9f9;
+    padding: 0.5rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    font-size: 0.9rem;
+  }
+
+  .keyboard-shortcuts-info small {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
   }
 
   .main-container {
     display: flex;
-    gap: 20px;
-    max-width: 1200px;
+    gap: 25px;
+    max-width: 1300px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 25px 20px;
   }
 
   .customer-list-container {
     flex: 3;
-  }
-
-  .side-panel {
-    flex: 1;
-    padding-top: 20px;
+    transition: all 0.3s ease;
   }
 
   .container {
-    max-width: 1200px;
+    max-width: 1300px;
     margin: 0 auto;
     padding: 20px;
   }
 
   .card {
     background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+    padding: 25px;
+    transition: all 0.3s ease;
+  }
+
+  .card:hover {
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
   }
 
   .form-card {
-    max-width: 800px;
+    max-width: 850px;
     margin: 0 auto;
   }
 
   .main-layout {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 25px;
   }
 
   .page-content {
     flex: 1;
+    padding-bottom: 2rem;
+  }
+
+  /* Responsiiviset tyylit suuremmille näytöille */
+  @media (min-width: 1400px) {
+    .container {
+      max-width: 1400px;
+    }
+
+    .card {
+      padding: 30px;
+    }
+
+    .main-container {
+      gap: 30px;
+    }
+  }
+
+  /* Responsiiviset tyylit pienemmille näytöille (vaikka pääsääntöisesti työpöytäkäyttöön) */
+  @media (max-width: 1200px) {
+    .main-container {
+      flex-direction: column;
+    }
+
+    .container {
+      padding: 15px;
+    }
+  }
+
+  .main-container.full-width {
+    flex-direction: column;
+    width: 100%;
+    max-width: 1300px;
+  }
+
+  .storage-location-container {
+    margin-top: 20px;
+    max-width: 100%;
+  }
+
+  @media (min-width: 768px) {
+    .storage-location-container {
+      max-width: 400px;
+      margin-left: auto;
+      margin-right: auto;
+    }
   }
 </style>
