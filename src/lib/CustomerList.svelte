@@ -236,7 +236,7 @@
 <style>
   .customer-list {
     width: 100%;
-    max-width: 1300px;
+    max-width: 100%; /* Changed from 1300px to 100% to allow full width expansion */
     margin: 0 auto;
   }
 
@@ -275,6 +275,7 @@
     box-shadow: var(--shadow-md);
     background-color: white;
     margin-bottom: 20px;
+    min-width: 100%; /* Ensure minimum width is 100% */
   }
 
   table {
@@ -283,12 +284,14 @@
     border-collapse: separate;
     border-spacing: 0;
     font-size: 0.9rem;
+    table-layout: auto; /* Allow table to naturally size based on content */
+    min-width: 1200px; /* Set a minimum width to prevent columns from getting too narrow */
   }
 
   th {
     position: sticky;
     top: 0;
-    padding: 0.75rem 0.5rem;
+    padding: 0.75rem 0.8rem; /* Increased horizontal padding for better readability */
     font-weight: 600;
     border-bottom: 2px solid var(--border-color);
     background-color: #f8f9fa;

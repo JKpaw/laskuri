@@ -611,8 +611,9 @@
   }
 
   footer .container {
-    max-width: 1200px;
+    max-width: 1600px; /* Increased from 1300px to 1600px for wider tables */
     margin: 0 auto;
+    padding: 20px;
   }
 
   .invoice-view {
@@ -696,7 +697,7 @@
   .main-container {
     display: flex;
     gap: 25px;
-    max-width: 1300px;
+    max-width: 1600px; /* Increased from 1300px to 1600px for wider tables */
     margin: 0 auto;
     padding: 25px 20px;
   }
@@ -707,7 +708,7 @@
   }
 
   .container {
-    max-width: 1300px;
+    max-width: 1600px; /* Increased from 1300px to 1600px for wider tables */
     margin: 0 auto;
     padding: 20px;
   }
@@ -720,10 +721,6 @@
     transition: all 0.3s ease;
   }
 
-  .card:hover {
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-  }
-
   .form-card {
     max-width: 850px;
     margin: 0 auto;
@@ -733,17 +730,19 @@
     display: flex;
     flex-direction: column;
     gap: 25px;
+    width: 100%; /* Ensure full width */
   }
 
   .page-content {
     flex: 1;
     padding-bottom: 2rem;
+    width: 100%; /* Ensure full width */
   }
 
   /* Responsiiviset tyylit suuremmille näytöille */
   @media (min-width: 1400px) {
     .container {
-      max-width: 1400px;
+      max-width: 95%; /* Changed from fixed width to percentage for better scaling */
     }
 
     .card {
@@ -769,7 +768,8 @@
   .main-container.full-width {
     flex-direction: column;
     width: 100%;
-    max-width: 1300px;
+    max-width: 100%; /* Changed from 1300px to 100% to use all available space */
+    padding: 25px 10px; /* Reduced horizontal padding for more space */
   }
 
   .storage-location-container {
