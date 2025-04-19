@@ -1,4 +1,5 @@
-import type { Customer, InvoiceCalculation } from '../types';
+import type { Customer, InvoiceCalculationResult, SavedCalculation } from '../types';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * Calculate the margin coefficient based on customer's margin factors
@@ -81,9 +82,9 @@ export function calculateCustomerMargin(
 }
 
 /**
- * Calculate complete invoice
+ * Calculate invoice result without customer reference
  */
-export function calculateInvoice(customer: Customer, vatRate: number = 0.24): InvoiceCalculation {
+export function calculateInvoiceResult(customer: Customer, vatRate: number = 0.24): InvoiceCalculationResult {
   // 1. Calculate average hours (total hours for 3 months divided by 3)
   const averageHours = customer.hoursLast3Months / 3;
   
@@ -120,7 +121,6 @@ export function calculateInvoice(customer: Customer, vatRate: number = 0.24): In
   );
   
   return {
-    customer,
     averageHours,
     subtotals: {
       hourlyWork,
@@ -137,5 +137,97 @@ export function calculateInvoice(customer: Customer, vatRate: number = 0.24): In
     priceWithoutVat,
     priceWithVat,
     customerMargin
+  };
+}
+
+/**
+ * For backward compatibility - returns the old InvoiceCalculation object
+ */
+export function calculateInvoice(customer: Customer, vatRate: number = 0.24): any {
+  const result = calculateInvoiceResult(customer, vatRate);
+  return {
+    customer,
+    ...result
+  };
+}
+
+/**
+ * Create a new saved calculation for a customer
+ */
+export function createSavedCalculation(
+  customer: Customer, 
+  name: string, 
+  type: 'draft' | 'offer' | 'final' | 'archived' = 'draft',
+  description: string = '',
+  notes: string = '',
+  vatRate: number = 0.24
+): SavedCalculation {
+  const result = calculateInvoiceResult(customer, vatRate);
+  
+  const now = new Date().toISOString();
+  
+  return {
+    id: uuidv4(),
+    customerId: customer.id,
+    name,
+    description,
+    createdAt: now,
+    modifiedAt: now,
+    type,
+    customerSnapshot: { ...customer }, // Clone the customer data
+    result,
+    notes,
+    version: 1
+  };
+}
+
+/**
+ * Create a duplicate of an existing calculation with a new ID
+ */
+export function duplicateCalculation(calculation: SavedCalculation, newName?: string): SavedCalculation {
+  const now = new Date().toISOString();
+  
+  return {
+    ...calculation,
+    id: uuidv4(),
+    name: newName || `${calculation.name} (Copy)`,
+    createdAt: now,
+    modifiedAt: now,
+    version: 1
+  };
+}
+
+/**
+ * Recalculate a saved calculation using its stored customer data
+ */
+export function recalculateInvoice(calculation: SavedCalculation, vatRate?: number): SavedCalculation {
+  const result = calculateInvoiceResult(
+    calculation.customerSnapshot, 
+    vatRate !== undefined ? vatRate : calculation.result.vatRate
+  );
+  
+  return {
+    ...calculation,
+    result,
+    modifiedAt: new Date().toISOString(),
+    version: calculation.version + 1
+  };
+}
+
+/**
+ * Update the customer snapshot in a calculation and recalculate
+ */
+export function updateCalculationCustomer(
+  calculation: SavedCalculation, 
+  customer: Customer
+): SavedCalculation {
+  const result = calculateInvoiceResult(customer, calculation.result.vatRate);
+  
+  return {
+    ...calculation,
+    customerSnapshot: { ...customer },
+    result,
+    modifiedAt: new Date().toISOString(),
+    version: calculation.version + 1
   };
 }

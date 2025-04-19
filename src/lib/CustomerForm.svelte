@@ -19,6 +19,9 @@
     : {
         id: uuidv4(),
         name: "",
+        email: "",
+        phone: "",
+        registrationDate: new Date().toISOString().split("T")[0],
         companyType: "Toiminimi",
         hoursLast3Months: 0,
         hourlyRate: 0,
@@ -46,6 +49,7 @@
         },
         isFirstMonth: false,
         isSpecialOffer: false,
+        notes: ""
       };
 
   // Update isLimitedCompany when companyType changes

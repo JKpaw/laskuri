@@ -1,13 +1,28 @@
 <script lang="ts">
-  import { calculateInvoice } from "./utils/calculations";
-  import type { Customer, InvoiceCalculation } from "./types";
+  import { createEventDispatcher } from "svelte";
+  import { calculateInvoice, createSavedCalculation } from "./utils/calculations";
+  import { addCalculation } from "./utils/storage";
+  import type { Customer, InvoiceCalculation, SavedCalculation } from "./types";
+  import InvoiceCalculationsList from "./InvoiceCalculationsList.svelte";
+  import InvoiceCalculationDetail from "./InvoiceCalculationDetail.svelte";
 
   export let customer: Customer;
   export let vatRate: number = 0.24; // Default 24%
 
-  let invoice: InvoiceCalculation;
+  const dispatch = createEventDispatcher<{
+    saveCalculation: SavedCalculation;
+  }>();
 
-  $: if (customer) {
+  let invoice: InvoiceCalculation;
+  let showCalculationsList = false;
+  let showSaveForm = false;
+  let selectedCalculation: SavedCalculation | null = null;
+  let newCalculationName = "";
+  let newCalculationType: "draft" | "offer" | "final" | "archived" = "draft";
+  let error = "";
+  let saving = false;
+
+  $: if (customer && !selectedCalculation) {
     invoice = calculateInvoice(customer, vatRate);
   }
 
@@ -36,309 +51,453 @@
     return new Date() <= date;
   }
 
-  function isYearEndPeriodActive(): boolean {
+  function isYearEndPeriodActive(customerData: Customer): boolean {
     if (
-      !customer.yearEndAccountingStartDate ||
-      !customer.yearEndAccountingEndDate
+      !customerData.yearEndAccountingStartDate ||
+      !customerData.yearEndAccountingEndDate
     )
       return false;
 
-    const startDate = new Date(customer.yearEndAccountingStartDate);
-    const endDate = new Date(customer.yearEndAccountingEndDate);
+    const startDate = new Date(customerData.yearEndAccountingStartDate);
+    const endDate = new Date(customerData.yearEndAccountingEndDate);
     const currentDate = new Date();
 
     return currentDate >= startDate && currentDate <= endDate;
   }
 
-  $: isPricingValid = isValidDate(customer.pricingValidUntil);
-  $: isDiscountValid = isValidDate(customer.discount.validUntil);
+  // Handle saving current calculation
+  async function handleSaveCalculation() {
+    if (!newCalculationName.trim()) {
+      error = "Please enter a name for this calculation";
+      return;
+    }
+
+    try {
+      saving = true;
+      error = "";
+      
+      // Create a new calculation
+      const savedCalculation = createSavedCalculation(
+        customer,
+        newCalculationName,
+        newCalculationType
+      );
+      
+      // Save to storage
+      await addCalculation(savedCalculation);
+      
+      // Notify parent
+      dispatch('saveCalculation', savedCalculation);
+      
+      // Update UI state
+      showSaveForm = false;
+      newCalculationName = "";
+      
+      // Display the saved calculation
+      selectedCalculation = savedCalculation;
+      
+    } catch (e) {
+      console.error("Failed to save calculation:", e);
+      error = "Failed to save calculation";
+    } finally {
+      saving = false;
+    }
+  }
+
+  function handleViewCalculations() {
+    showCalculationsList = true;
+    selectedCalculation = null;
+  }
+
+  function handleSelectCalculation(event: CustomEvent<SavedCalculation>) {
+    selectedCalculation = event.detail;
+    showCalculationsList = false;
+  }
+
+  function handleCreateCalculation(event: CustomEvent<SavedCalculation>) {
+    selectedCalculation = event.detail;
+    showCalculationsList = false;
+  }
+
+  function handleCloseCalculationDetail() {
+    selectedCalculation = null;
+  }
+
+  function handleCloseCalculationsList() {
+    showCalculationsList = false;
+  }
+
+  function handleUpdateCalculation(event: CustomEvent<SavedCalculation>) {
+    selectedCalculation = event.detail;
+  }
+
+  $: isPricingValid = isValidDate(customer?.pricingValidUntil);
+  $: isDiscountValid = isValidDate(customer?.discount.validUntil);
+
+  // Get the customer data based on context - either from a saved calculation or the current customer
+  $: customerData = selectedCalculation ? selectedCalculation.customerSnapshot : customer;
+  // Get invoice data - either from a saved calculation or the current invoice
+  $: invoiceData = selectedCalculation ? selectedCalculation.result : invoice;
 </script>
 
 <div class="invoice-calculator">
-  <h2>Invoice Calculation for {customer.name}</h2>
-
-  <div class="validity-banners">
-    <div class="validity-banner pricing {isPricingValid ? 'valid' : 'expired'}">
-      <span class="label">Pricing {isPricingValid ? "Valid" : "Expired"}:</span>
-      <span class="date">{formatDate(customer.pricingValidUntil)}</span>
+  {#if showCalculationsList}
+    <InvoiceCalculationsList
+      {customer}
+      on:selectCalculation={handleSelectCalculation}
+      on:createCalculation={handleCreateCalculation}
+      on:close={handleCloseCalculationsList}
+    />
+  {:else if selectedCalculation}
+    <InvoiceCalculationDetail
+      calculation={selectedCalculation}
+      on:close={handleCloseCalculationDetail}
+      on:update={handleUpdateCalculation}
+    />
+  {:else}
+    <div class="header">
+      <h2>Invoice Calculation for {customer.name}</h2>
+      <div class="actions">
+        <button on:click={() => showSaveForm = !showSaveForm} class="btn btn-secondary">
+          {#if !showSaveForm}
+            <i class="icon">💾</i> Save Calculation
+          {:else}
+            <i class="icon">✕</i> Cancel
+          {/if}
+        </button>
+        <button on:click={handleViewCalculations} class="btn btn-primary">
+          <i class="icon">📋</i> View Saved Calculations
+        </button>
+      </div>
     </div>
 
-    {#if customer.discount.percentage > 0}
-      <div
-        class="validity-banner discount {isDiscountValid ? 'valid' : 'expired'}"
-      >
-        <span class="label"
-          >Discount {isDiscountValid ? "Valid" : "Expired"}:</span
-        >
-        <span class="date">{formatDate(customer.discount.validUntil)}</span>
-      </div>
-    {/if}
-  </div>
-
-  {#if invoice}
-    <div class="calculation-details">
-      <section class="hours-section">
-        <h3>Hours Calculation</h3>
-        <div class="detail-row">
-          <span>Total Hours (Last 3 Months):</span>
-          <span>{customer.hoursLast3Months} hours</span>
-        </div>
-        <div class="detail-row highlight">
-          <span>Average Monthly Hours:</span>
-          <span>{invoice.averageHours.toFixed(2)} hours</span>
-        </div>
-      </section>
-
-      <section class="subtotal-section">
-        <h3>Subtotals</h3>
-        <div class="detail-row">
-          <span>Hourly Work:</span>
-          <span
-            >{invoice.averageHours.toFixed(2)} h × {formatCurrency(
-              customer.hourlyRate
-            )}/h = {formatCurrency(invoice.subtotals.hourlyWork)}</span
-          >
-        </div>
-        <div class="detail-row">
-          <span>Accounting Software:</span>
-          <span>{formatCurrency(invoice.subtotals.accountingSoftware)}</span>
-        </div>
-        <div class="detail-row">
-          <span>Salary Payments:</span>
-          <span
-            >{customer.numberOfEmployees} × {formatCurrency(
-              customer.salaryPaymentPrice
-            )} = {formatCurrency(invoice.subtotals.salaryPayments)}</span
-          >
-        </div>
-        <div class="detail-row highlight">
-          <span>Subtotal:</span>
-          <span>{formatCurrency(invoice.subtotals.totalSubtotal)}</span>
-        </div>
-      </section>
-
-      <section class="margin-section">
-        <h3>Margin Calculation</h3>
-        <div class="margin-factors">
-          <h4>Applied Margin Factors:</h4>
-          <ul>
-            <li class="base-margin">Base Margin: 0.1 (10%)</li>
-            {#if customer.marginFactors.foreignTrade}<li>
-                Foreign Trade: +0.1
-              </li>{/if}
-            {#if customer.marginFactors.cashOperations}<li>
-                Cash Operations: +0.1
-              </li>{/if}
-            {#if customer.marginFactors.ecommerce}<li>E-commerce: +0.1</li>{/if}
-            {#if customer.marginFactors.import}<li>Import: +0.1</li>{/if}
-            {#if customer.marginFactors.assetsInBalance}<li>
-                Assets in Balance: +0.1
-              </li>{/if}
-            {#if customer.marginFactors.investments}<li>
-                Investments: +0.1
-              </li>{/if}
-            {#if customer.marginFactors.isLimitedCompany}<li>
-                Limited Company (OY): +0.1
-              </li>{/if}
-            {#if customer.marginFactors.vatLiable}<li>VAT Liable: +0.1</li>{/if}
-            {#if customer.marginFactors.manualBankStatement}<li>
-                Manual Bank Statement: +0.1
-              </li>{/if}
-          </ul>
-        </div>
-        <div class="detail-row highlight">
-          <span>Margin Coefficient:</span>
-          <span
-            >{invoice.marginCoefficient.toFixed(2)} ({(
-              invoice.marginCoefficient * 100
-            ).toFixed(0)}%)</span
-          >
-        </div>
-        <div class="detail-row">
-          <span>Margin Amount:</span>
-          <span
-            >{formatCurrency(invoice.subtotals.hourlyWork)} × {invoice.marginCoefficient.toFixed(
-              2
-            )} = {formatCurrency(invoice.marginAmount)}</span
-          >
-        </div>
-      </section>
-
-      <section class="year-end-section">
-        <h3>Year-End Pricing</h3>
-        <div class="detail-row">
-          <span>Previous Year Invoicing:</span>
-          <span>{formatCurrency(customer.previousYearInvoicing)}</span>
-        </div>
-        <div class="detail-row">
-          <span>Year-End Pricing Period:</span>
-          <span class={isYearEndPeriodActive() ? "valid-date" : "expired-date"}>
-            {formatDate(customer.yearEndAccountingStartDate)} - {formatDate(
-              customer.yearEndAccountingEndDate
-            )}
-          </span>
-        </div>
-        <div class="detail-row">
-          <span>Base Calculation:</span>
-          <span
-            >{formatCurrency(customer.previousYearInvoicing)} ÷ 12 = {formatCurrency(
-              customer.previousYearInvoicing / 12
-            )}</span
-          >
-        </div>
-        {#if customer.companyType === "Toiminimi" && customer.previousYearInvoicing / 12 < 100}
-          <div class="detail-row">
-            <span>Minimum for Toiminimi:</span>
-            <span>{formatCurrency(100)}</span>
-          </div>
-        {:else if customer.companyType === "OY" && customer.previousYearInvoicing / 12 < 260}
-          <div class="detail-row">
-            <span>Minimum for OY:</span>
-            <span>{formatCurrency(260)}</span>
+    {#if showSaveForm}
+      <div class="save-form">
+        {#if error}
+          <div class="error-message">
+            <i class="icon">⚠️</i> {error}
           </div>
         {/if}
-        <div class="detail-row highlight">
-          <span>Year-End Pricing:</span>
-          <span>
-            {formatCurrency(invoice.yearEndAccountingPrice)}
-            {#if !isYearEndPeriodActive()}
-              <span class="expired-note"
-                >(not applied - outside pricing period)</span
-              >
-            {/if}
-          </span>
-        </div>
-      </section>
-
-      <!-- Enhanced discount section, always shown if discount exists -->
-      {#if customer.discount.percentage > 0}
-        <section
-          class="discount-section {isDiscountValid
-            ? 'active-discount'
-            : 'expired-discount'}"
-        >
-          <h3>
-            Discount
-            {#if !isDiscountValid}
-              <span class="expired-tag">Expired</span>
-            {/if}
-          </h3>
-          <div class="detail-row">
-            <span>Discount Percentage:</span>
-            <span>{customer.discount.percentage}%</span>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="calculation-name">Calculation Name</label>
+            <input
+              id="calculation-name"
+              bind:value={newCalculationName}
+              type="text"
+              placeholder="E.g. April 2025 Invoice"
+              class="form-control"
+            />
           </div>
+          
+          <div class="form-group">
+            <label for="calculation-type">Type</label>
+            <select
+              id="calculation-type"
+              bind:value={newCalculationType}
+              class="form-control"
+            >
+              <option value="draft">Draft</option>
+              <option value="offer">Offer</option>
+              <option value="final">Final Invoice</option>
+              <option value="archived">Archived</option>
+            </select>
+          </div>
+          
+          <button 
+            on:click={handleSaveCalculation} 
+            class="btn btn-primary" 
+            disabled={saving}
+          >
+            <i class="icon">💾</i> {saving ? 'Saving...' : 'Save'}
+          </button>
+        </div>
+      </div>
+    {/if}
+
+    <div class="validity-banners">
+      <div class="validity-banner pricing {isPricingValid ? 'valid' : 'expired'}">
+        <span class="label">Pricing {isPricingValid ? "Valid" : "Expired"}:</span>
+        <span class="date">{formatDate(customerData.pricingValidUntil)}</span>
+      </div>
+
+      {#if customerData.discount.percentage > 0}
+        <div
+          class="validity-banner discount {isDiscountValid ? 'valid' : 'expired'}"
+        >
+          <span class="label"
+            >Discount {isDiscountValid ? "Valid" : "Expired"}:</span
+          >
+          <span class="date">{formatDate(customerData.discount.validUntil)}</span>
+        </div>
+      {/if}
+    </div>
+
+    {#if invoiceData}
+      <div class="calculation-details">
+        <section class="hours-section">
+          <h3>Hours Calculation</h3>
           <div class="detail-row">
-            <span>Valid Until:</span>
-            <span class={isDiscountValid ? "valid-date" : "expired-date"}>
-              {formatDate(customer.discount.validUntil)}
-            </span>
+            <span>Total Hours (Last 3 Months):</span>
+            <span>{customerData.hoursLast3Months} hours</span>
           </div>
           <div class="detail-row highlight">
+            <span>Average Monthly Hours:</span>
+            <span>{invoiceData.averageHours.toFixed(2)} hours</span>
+          </div>
+        </section>
+
+        <section class="subtotal-section">
+          <h3>Subtotals</h3>
+          <div class="detail-row">
+            <span>Hourly Work:</span>
             <span
-              >Discount Amount ({isDiscountValid
-                ? "Applied"
-                : "Not Applied"}):</span
+              >{invoiceData.averageHours.toFixed(2)} h × {formatCurrency(
+                customerData.hourlyRate
+              )}/h = {formatCurrency(invoiceData.subtotals.hourlyWork)}</span
             >
+          </div>
+          <div class="detail-row">
+            <span>Accounting Software:</span>
+            <span>{formatCurrency(invoiceData.subtotals.accountingSoftware)}</span>
+          </div>
+          <div class="detail-row">
+            <span>Salary Payments:</span>
+            <span
+              >{customerData.numberOfEmployees} × {formatCurrency(
+                customerData.salaryPaymentPrice
+              )} = {formatCurrency(invoiceData.subtotals.salaryPayments)}</span
+            >
+          </div>
+          <div class="detail-row highlight">
+            <span>Subtotal:</span>
+            <span>{formatCurrency(invoiceData.subtotals.totalSubtotal)}</span>
+          </div>
+        </section>
+
+        <section class="margin-section">
+          <h3>Margin Calculation</h3>
+          <div class="margin-factors">
+            <h4>Applied Margin Factors:</h4>
+            <ul>
+              <li class="base-margin">Base Margin: 0.1 (10%)</li>
+              {#if customerData.marginFactors.foreignTrade}<li>
+                  Foreign Trade: +0.1
+                </li>{/if}
+              {#if customerData.marginFactors.cashOperations}<li>
+                  Cash Operations: +0.1
+                </li>{/if}
+              {#if customerData.marginFactors.ecommerce}<li>E-commerce: +0.1</li>{/if}
+              {#if customerData.marginFactors.import}<li>Import: +0.1</li>{/if}
+              {#if customerData.marginFactors.assetsInBalance}<li>
+                  Assets in Balance: +0.1
+                </li>{/if}
+              {#if customerData.marginFactors.investments}<li>
+                  Investments: +0.1
+                </li>{/if}
+              {#if customerData.marginFactors.isLimitedCompany}<li>
+                  Limited Company (OY): +0.1
+                </li>{/if}
+              {#if customerData.marginFactors.vatLiable}<li>VAT Liable: +0.1</li>{/if}
+              {#if customerData.marginFactors.manualBankStatement}<li>
+                  Manual Bank Statement: +0.1
+                </li>{/if}
+            </ul>
+          </div>
+          <div class="detail-row highlight">
+            <span>Margin Coefficient:</span>
+            <span
+              >{invoiceData.marginCoefficient.toFixed(2)} ({(
+                invoiceData.marginCoefficient * 100
+              ).toFixed(0)}%)</span
+            >
+          </div>
+          <div class="detail-row">
+            <span>Margin Amount:</span>
+            <span
+              >{formatCurrency(invoiceData.subtotals.hourlyWork)} × {invoiceData.marginCoefficient.toFixed(
+                2
+              )} = {formatCurrency(invoiceData.marginAmount)}</span
+            >
+          </div>
+        </section>
+
+        <section class="year-end-section">
+          <h3>Year-End Pricing</h3>
+          <div class="detail-row">
+            <span>Previous Year Invoicing:</span>
+            <span>{formatCurrency(customerData.previousYearInvoicing)}</span>
+          </div>
+          <div class="detail-row">
+            <span>Year-End Pricing Period:</span>
+            <span class={isYearEndPeriodActive(customerData) ? "valid-date" : "expired-date"}>
+              {formatDate(customerData.yearEndAccountingStartDate)} - {formatDate(
+                customerData.yearEndAccountingEndDate
+              )}
+            </span>
+          </div>
+          <div class="detail-row">
+            <span>Base Calculation:</span>
+            <span
+              >{formatCurrency(customerData.previousYearInvoicing)} ÷ 12 = {formatCurrency(
+                customerData.previousYearInvoicing / 12
+              )}</span
+            >
+          </div>
+          {#if customerData.companyType === "Toiminimi" && customerData.previousYearInvoicing / 12 < 100}
+            <div class="detail-row">
+              <span>Minimum for Toiminimi:</span>
+              <span>{formatCurrency(100)}</span>
+            </div>
+          {:else if customerData.companyType === "OY" && customerData.previousYearInvoicing / 12 < 260}
+            <div class="detail-row">
+              <span>Minimum for OY:</span>
+              <span>{formatCurrency(260)}</span>
+            </div>
+          {/if}
+          <div class="detail-row highlight">
+            <span>Year-End Pricing:</span>
             <span>
-              {isDiscountValid
-                ? `-${formatCurrency(invoice.discountAmount)}`
-                : formatCurrency(0)}
-              {#if !isDiscountValid && customer.discount.percentage > 0}
+              {formatCurrency(invoiceData.yearEndAccountingPrice)}
+              {#if !isYearEndPeriodActive(customerData)}
                 <span class="expired-note"
-                  >(would be -{formatCurrency(invoice.discountAmount)} if valid)</span
+                  >(not applied - outside pricing period)</span
                 >
               {/if}
             </span>
           </div>
         </section>
-      {/if}
 
-      {#if customer.isFirstMonth}
-        <section class="special-cases">
-          <h3>Special Cases</h3>
-          <div class="detail-row">
-            <span>First Month Setup Fee:</span>
-            <span>{formatCurrency(invoice.additionalFees)}</span>
+        <!-- Enhanced discount section, always shown if discount exists -->
+        {#if customerData.discount.percentage > 0}
+          <section
+            class="discount-section {isDiscountValid
+              ? 'active-discount'
+              : 'expired-discount'}"
+          >
+            <h3>
+              Discount
+              {#if !isDiscountValid}
+                <span class="expired-tag">Expired</span>
+              {/if}
+            </h3>
+            <div class="detail-row">
+              <span>Discount Percentage:</span>
+              <span>{customerData.discount.percentage}%</span>
+            </div>
+            <div class="detail-row">
+              <span>Valid Until:</span>
+              <span class={isDiscountValid ? "valid-date" : "expired-date"}>
+                {formatDate(customerData.discount.validUntil)}
+              </span>
+            </div>
+            <div class="detail-row highlight">
+              <span
+                >Discount Amount ({isDiscountValid
+                  ? "Applied"
+                  : "Not Applied"}):</span
+              >
+              <span>
+                {isDiscountValid
+                  ? `-${formatCurrency(invoiceData.discountAmount)}`
+                  : formatCurrency(0)}
+                {#if !isDiscountValid && customerData.discount.percentage > 0}
+                  <span class="expired-note"
+                    >(would be -{formatCurrency(invoiceData.discountAmount)} if valid)</span
+                  >
+                {/if}
+              </span>
+            </div>
+          </section>
+        {/if}
+
+        {#if customerData.isFirstMonth}
+          <section class="special-cases">
+            <h3>Special Cases</h3>
+            <div class="detail-row">
+              <span>First Month Setup Fee:</span>
+              <span>{formatCurrency(invoiceData.additionalFees)}</span>
+            </div>
+          </section>
+        {/if}
+
+        <section class="final-price">
+          <h3>Final Price</h3>
+          <div class="calculation-summary">
+            <div class="formula">
+              <span>Subtotal</span>
+              <span>+</span>
+              <span>Margin</span>
+              <span>+</span>
+              <span>Year-End</span>
+              {#if isDiscountValid && invoiceData.discountAmount > 0}
+                <span>-</span>
+                <span>Discount</span>
+              {/if}
+              {#if invoiceData.additionalFees > 0}
+                <span>+</span>
+                <span>Additional Fees</span>
+              {/if}
+            </div>
+            <div class="values">
+              <span>{formatCurrency(invoiceData.subtotals.totalSubtotal)}</span>
+              <span>+</span>
+              <span>{formatCurrency(invoiceData.marginAmount)}</span>
+              <span>+</span>
+              <span>{formatCurrency(invoiceData.yearEndAccountingPrice)}</span>
+              {#if isDiscountValid && invoiceData.discountAmount > 0}
+                <span>-</span>
+                <span>{formatCurrency(invoiceData.discountAmount)}</span>
+              {/if}
+              {#if invoiceData.additionalFees > 0}
+                <span>+</span>
+                <span>{formatCurrency(invoiceData.additionalFees)}</span>
+              {/if}
+            </div>
+          </div>
+
+          <div class="final-prices">
+            <div class="detail-row highlight subtotal-margin">
+              <span>Subtotal + Margin:</span>
+              <span
+                >{formatCurrency(
+                  invoiceData.subtotals.totalSubtotal + invoiceData.marginAmount
+                )}</span
+              >
+            </div>
+            <div class="detail-row subtotal-margin-vat">
+              <span>Subtotal + Margin with VAT:</span>
+              <span
+                >{formatCurrency(
+                  (invoiceData.subtotals.totalSubtotal + invoiceData.marginAmount) *
+                    (1 + invoiceData.vatRate)
+                )}</span
+              >
+            </div>
+            <div class="detail-row highlight">
+              <span>Total Price without VAT:</span>
+              <span>{formatCurrency(invoiceData.priceWithoutVat)}</span>
+            </div>
+            <div class="detail-row">
+              <span>VAT ({(invoiceData.vatRate * 100).toFixed(1)}%):</span>
+              <span
+                >{formatCurrency(
+                  invoiceData.priceWithVat - invoiceData.priceWithoutVat
+                )}</span
+              >
+            </div>
+            <div class="detail-row total">
+              <span>Total Price with VAT:</span>
+              <span>{formatCurrency(invoiceData.priceWithVat)}</span>
+            </div>
+            <div class="detail-row customer-margin">
+              <span>Customer Margin:</span>
+              <span>{formatCurrency(invoiceData.customerMargin)}</span>
+            </div>
           </div>
         </section>
-      {/if}
-
-      <section class="final-price">
-        <h3>Final Price</h3>
-        <div class="calculation-summary">
-          <div class="formula">
-            <span>Subtotal</span>
-            <span>+</span>
-            <span>Margin</span>
-            <span>+</span>
-            <span>Year-End</span>
-            {#if isDiscountValid && invoice.discountAmount > 0}
-              <span>-</span>
-              <span>Discount</span>
-            {/if}
-            {#if invoice.additionalFees > 0}
-              <span>+</span>
-              <span>Additional Fees</span>
-            {/if}
-          </div>
-          <div class="values">
-            <span>{formatCurrency(invoice.subtotals.totalSubtotal)}</span>
-            <span>+</span>
-            <span>{formatCurrency(invoice.marginAmount)}</span>
-            <span>+</span>
-            <span>{formatCurrency(invoice.yearEndAccountingPrice)}</span>
-            {#if isDiscountValid && invoice.discountAmount > 0}
-              <span>-</span>
-              <span>{formatCurrency(invoice.discountAmount)}</span>
-            {/if}
-            {#if invoice.additionalFees > 0}
-              <span>+</span>
-              <span>{formatCurrency(invoice.additionalFees)}</span>
-            {/if}
-          </div>
-        </div>
-
-        <div class="final-prices">
-          <div class="detail-row highlight subtotal-margin">
-            <span>Subtotal + Margin:</span>
-            <span
-              >{formatCurrency(
-                invoice.subtotals.totalSubtotal + invoice.marginAmount
-              )}</span
-            >
-          </div>
-          <div class="detail-row subtotal-margin-vat">
-            <span>Subtotal + Margin with VAT:</span>
-            <span
-              >{formatCurrency(
-                (invoice.subtotals.totalSubtotal + invoice.marginAmount) *
-                  (1 + vatRate)
-              )}</span
-            >
-          </div>
-          <div class="detail-row highlight">
-            <span>Total Price without VAT:</span>
-            <span>{formatCurrency(invoice.priceWithoutVat)}</span>
-          </div>
-          <div class="detail-row">
-            <span>VAT ({(vatRate * 100).toFixed(1)}%):</span>
-            <span
-              >{formatCurrency(
-                invoice.priceWithVat - invoice.priceWithoutVat
-              )}</span
-            >
-          </div>
-          <div class="detail-row total">
-            <span>Total Price with VAT:</span>
-            <span>{formatCurrency(invoice.priceWithVat)}</span>
-          </div>
-          <div class="detail-row customer-margin">
-            <span>Customer Margin:</span>
-            <span>{formatCurrency(invoice.customerMargin)}</span>
-          </div>
-        </div>
-      </section>
-    </div>
+      </div>
+    {/if}
   {/if}
 </div>
 
@@ -354,11 +513,66 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   }
 
-  h2 {
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 25px;
+    flex-wrap: wrap;
+    gap: 15px;
+  }
+
+  .actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .save-form {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border-left: 3px solid #0066cc;
+  }
+
+  .form-row {
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
+  }
+
+  .form-group {
+    flex: 1;
+  }
+
+  .form-control {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 1rem;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+
+  .error-message {
+    background-color: #ffebee;
+    color: #c62828;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  h2 {
+    margin-bottom: 0;
     color: var(--primary-dark);
-    border-bottom: 2px solid #0066cc;
-    padding-bottom: 12px;
     font-size: 1.6rem;
     letter-spacing: -0.5px;
   }
@@ -656,6 +870,21 @@
   }
 
   @media (max-width: 768px) {
+    .header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    
+    .actions {
+      width: 100%;
+      justify-content: space-between;
+    }
+    
+    .form-row {
+      flex-direction: column;
+      gap: 15px;
+    }
+    
     .validity-banner {
       flex-direction: column;
       align-items: flex-start;

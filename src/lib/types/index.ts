@@ -1,54 +1,62 @@
-// Customer data model
+// Customer types
+export interface MarginFactors {
+  foreignTrade: boolean;
+  cashOperations: boolean;
+  ecommerce: boolean;
+  import: boolean;
+  assetsInBalance: boolean;
+  investments: boolean;
+  isLimitedCompany: boolean;
+  vatLiable: boolean;
+  manualBankStatement: boolean;
+}
+
+export interface Discount {
+  percentage: number;
+  validUntil: string; // Date as string in ISO format
+}
+
 export interface Customer {
   id: string;
   name: string;
-  companyType: 'Toiminimi' | 'OY';  // Company type (sole trader or limited company)
-  hoursLast3Months: number; // Total hours for last 3 months (will be divided by 3)
-  hourlyRate: number; // Hourly rate for calculations
-  accountingSoftwarePrice: number; // Fixed price for accounting software
-  salaryPaymentPrice: number; // Price per employee for salary payments
-  numberOfEmployees: number; // Number of employees
-  previousYearInvoicing: number; // Used for year-end accounting calculation
-  pricingValidUntil: string; // Valid until date for the whole pricing
-  
-  // Year-end accounting period
-  yearEndAccountingStartDate: string; // Start date for year-end accounting
-  yearEndAccountingEndDate: string; // End date for year-end accounting
-  
-  // Margin factors - each boolean represents if factor is applicable
-  marginFactors: {
-    foreignTrade: boolean;
-    cashOperations: boolean;
-    ecommerce: boolean;
-    import: boolean;
-    assetsInBalance: boolean;
-    investments: boolean;
-    isLimitedCompany: boolean; // OY
-    vatLiable: boolean;
-    manualBankStatement: boolean;
-  };
-  
-  // Discount details
-  discount: {
-    percentage: number;
-    validUntil: string; // date string
-  };
-  
-  // Special case flags
-  isFirstMonth: boolean;
-  isSpecialOffer: boolean;
+  email: string;
+  phone: string;
+  companyType: 'Toiminimi' | 'OY';
+  registrationDate: string;
+  hourlyRate: number;
+  hoursLast3Months: number;
+  accountingSoftwarePrice: number;
+  numberOfEmployees: number;
+  salaryPaymentPrice: number;
+  yearEndAccountingStartDate: string; // Start date of year-end accounting period
+  yearEndAccountingEndDate: string; // End date of year-end accounting period
+  previousYearInvoicing: number;
+  marginFactors: MarginFactors;
+  discount: Discount;
+  pricingValidUntil: string; // Date as string in ISO format
+  isFirstMonth: boolean; // Flag for first month setup fee
+  isSpecialOffer: boolean; // Flag for special offer
+  notes: string;
+  calculationIds?: string[]; // References to saved calculations
 }
 
-// Invoice calculation result
+// Storage preferences
+export interface StoragePreferences {
+  customStoragePath: string | null;
+}
+
+// Calculation types
+export interface InvoiceSubtotals {
+  hourlyWork: number;
+  accountingSoftware: number;
+  salaryPayments: number;
+  totalSubtotal: number;
+}
+
 export interface InvoiceCalculation {
   customer: Customer;
   averageHours: number;
-  subtotals: {
-    hourlyWork: number;
-    accountingSoftware: number;
-    salaryPayments: number;
-    totalSubtotal: number;
-  };
+  subtotals: InvoiceSubtotals;
   marginCoefficient: number;
   marginAmount: number;
   yearEndAccountingPrice: number;
@@ -57,12 +65,44 @@ export interface InvoiceCalculation {
   vatRate: number;
   priceWithoutVat: number;
   priceWithVat: number;
-  customerMargin: number; // customer profit margin
+  customerMargin: number;
+}
+
+// New type for calculation results without customer reference
+export interface InvoiceCalculationResult {
+  averageHours: number;
+  subtotals: InvoiceSubtotals;
+  marginCoefficient: number;
+  marginAmount: number;
+  yearEndAccountingPrice: number;
+  discountAmount: number;
+  additionalFees: number;
+  vatRate: number;
+  priceWithoutVat: number;
+  priceWithVat: number;
+  customerMargin: number;
+}
+
+// Type for saved calculations
+export interface SavedCalculation {
+  id: string;
+  customerId: string;
+  name: string;
+  description?: string;
+  createdAt: string; // ISO date string
+  modifiedAt: string; // ISO date string
+  type: 'draft' | 'offer' | 'final' | 'archived';
+  customerSnapshot: Customer; // Full customer data at time of calculation
+  result: InvoiceCalculationResult;
+  notes?: string;
+  version: number; // For tracking changes
 }
 
 // Application state
 export interface AppState {
   customers: Customer[];
+  calculations: SavedCalculation[];
   selectedCustomerId: string | null;
+  selectedCalculationId: string | null;
   vatRate: number; // Default VAT rate (e.g., 0.24 for 24%)
 }
