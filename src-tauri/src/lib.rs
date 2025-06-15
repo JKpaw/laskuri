@@ -19,6 +19,9 @@ pub fn run() {
       // Register shell plugin
       app.handle().plugin(tauri_plugin_shell::init())?;
       
+      // Register OS plugin for system paths
+      app.handle().plugin(tauri_plugin_os::init())?;
+      
       Ok(())
     })
     .run(tauri::generate_context!())

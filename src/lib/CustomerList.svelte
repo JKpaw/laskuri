@@ -1,570 +1,243 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { loadCustomers, deleteCustomer } from "./utils/storage";
-  import { calculateInvoice } from "./utils/calculations";
-  import type { Customer } from "./types";
+  import { createEventDispatcher } from 'svelte';
 
-  export let onSelectCustomer: (customer: Customer) => void;
-  export let onAddCustomer: () => void;
-  export let onShowInvoice: (customer: Customer) => void;
-
-  let customers: Customer[] = [];
-  let loading = true;
-  let error = "";
-
-  onMount(async () => {
-    try {
-      customers = await loadCustomers();
-      loading = false;
-    } catch (e) {
-      console.error("Failed to load customers:", e);
-      error = "Failed to load customers";
-      loading = false;
-    }
-  });
-
-  async function handleDeleteCustomer(id: string) {
-    if (confirm("Are you sure you want to delete this customer?")) {
-      try {
-        customers = await deleteCustomer(id);
-      } catch (e) {
-        console.error("Failed to delete customer:", e);
-        error = "Failed to delete customer";
-      }
-    }
+  interface Customer {
+    id: string;
+    name: string;
+    companyType: 'toiminimi' | 'oy';
+    email?: string;
+    phone?: string;
+    address?: string;
+    createdDate: string;
   }
 
-  function formatDate(dateString: string): string {
-    if (!dateString) return "N/A";
+  export let customers: Customer[];
 
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return "Invalid date";
+  const dispatch = createEventDispatcher();
 
-    return date.toLocaleDateString();
+  function handleCalculation(customer: Customer) {
+    dispatch('show-calculation', customer);
   }
 
-  function formatDateRange(startDate: string, endDate: string): string {
-    if (!startDate || !endDate) return "Not set";
-
-    return `${formatDate(startDate)} - ${formatDate(endDate)}`;
-  }
-
-  function isValidDate(dateString: string): boolean {
-    if (!dateString) return false;
-
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return false;
-
-    return new Date() <= date;
-  }
-
-  function isYearEndPeriodActive(customer: Customer): boolean {
-    if (
-      !customer.yearEndAccountingStartDate ||
-      !customer.yearEndAccountingEndDate
-    )
-      return false;
-
-    const startDate = new Date(customer.yearEndAccountingStartDate);
-    const endDate = new Date(customer.yearEndAccountingEndDate);
-    const currentDate = new Date();
-
-    return currentDate >= startDate && currentDate <= endDate;
-  }
-
-  function getSubtotalMarginAmount(customer: Customer): string {
-    try {
-      const invoice = calculateInvoice(customer);
-      return `€${(invoice.subtotals.totalSubtotal + invoice.marginAmount).toFixed(2)}`;
-    } catch (e) {
-      console.error("Error calculating subtotal + margin:", e);
-      return "Error";
-    }
-  }
-
-  function getYearEndPricingAmount(customer: Customer): string {
-    try {
-      const invoice = calculateInvoice(customer);
-      return isYearEndPeriodActive(customer)
-        ? `€${invoice.yearEndAccountingPrice.toFixed(2)}`
-        : "€0.00";
-    } catch (e) {
-      console.error("Error calculating year-end pricing:", e);
-      return "Error";
-    }
+  function handleDelete(customerId: string) {
+    dispatch('delete-customer', customerId);
   }
 </script>
 
-<div class="customer-list">
-  <div class="header">
-    <h2><i class="icon">👥</i> Customers</h2>
-    <button on:click={onAddCustomer} class="btn btn-primary add-button">
-      <i class="icon">➕</i> Add Customer
-    </button>
+<div class="customers-section">
+  <div class="section-header mb-6">
+    <h2>Asiakkaat</h2>
+    <div class="customer-count badge badge-info">
+      {customers.length} asiakasta
+    </div>
   </div>
-
-  {#if loading}
-    <div class="loading-state">
-      <div class="spinner"></div>
-      <p>Loading customers...</p>
-    </div>
-  {:else if error}
-    <div class="error-state">
-      <i class="icon error-icon">⚠️</i>
-      <p class="error">{error}</p>
-      <button
-        on:click={() => location.reload()}
-        class="btn btn-secondary retry-btn"
-      >
-        <i class="icon">🔄</i> Retry
-      </button>
-    </div>
-  {:else if customers.length === 0}
-    <div class="empty-state">
-      <div class="empty-icon">📋</div>
-      <p class="empty">
-        No customers found. Add your first customer to get started.
-      </p>
-      <button on:click={onAddCustomer} class="btn btn-primary">
-        <i class="icon">➕</i> Add First Customer
-      </button>
+  
+  {#if customers.length === 0}
+    <div class="empty-state card">
+      <div class="card-body text-center">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="empty-icon">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <line x1="19" y1="8" x2="19" y2="14"/>
+          <line x1="22" y1="11" x2="16" y2="11"/>
+        </svg>
+        <h3 class="mb-2">Ei asiakkaita vielä</h3>
+        <p class="text-gray-600">Aloita lisäämällä ensimmäinen asiakas järjestelmään</p>
+      </div>
     </div>
   {:else}
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Company</th>
-            <th>Avg. Hours</th>
-            <th>Subtotal + Margin</th>
-            <th>Year-End Pricing</th>
-            <th>Year-End Period</th>
-            <th>Pricing Valid Until</th>
-            <th>Discount Valid Until</th>
-            <th class="text-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each customers as customer}
-            <tr>
-              <td class="customer-name">
-                <span class="icon-wrapper"><i class="icon">👤</i></span>
-                {customer.name}
-              </td>
-              <td>
-                <span
-                  class="tag {customer.companyType === 'OY'
-                    ? 'tag-blue'
-                    : 'tag-green'}"
-                >
-                  {customer.companyType}
-                </span>
-              </td>
-              <td>
-                {(customer.hoursLast3Months / 3).toFixed(1)}h
-              </td>
-              <td class="amount subtotal-margin">
-                {getSubtotalMarginAmount(customer)}
-              </td>
-              <td
-                class="amount year-end {isYearEndPeriodActive(customer)
-                  ? 'active'
-                  : 'inactive'}"
-              >
-                {getYearEndPricingAmount(customer)}
-                {#if !isYearEndPeriodActive(customer)}
-                  <span class="inactive-note">(inactive)</span>
-                {/if}
-              </td>
-              <td
-                class="date-range {isYearEndPeriodActive(customer)
-                  ? 'active'
-                  : 'inactive'}"
-              >
-                {formatDateRange(
-                  customer.yearEndAccountingStartDate,
-                  customer.yearEndAccountingEndDate
-                )}
-              </td>
-              <td>
-                <span
-                  class="date {isValidDate(customer.pricingValidUntil)
-                    ? 'valid-date'
-                    : 'expired-date'}"
-                >
-                  {formatDate(customer.pricingValidUntil)}
-                </span>
-              </td>
-              <td>
-                <span
-                  class="date {isValidDate(customer.discount.validUntil)
-                    ? 'valid-date'
-                    : 'expired-date'}"
-                >
-                  {formatDate(customer.discount.validUntil)}
-                </span>
-              </td>
-              <td class="actions">
-                <button
-                  on:click={() => onShowInvoice(customer)}
-                  class="btn btn-sm btn-primary invoice"
-                >
-                  <i class="icon">📄</i> Invoice
-                </button>
-                <button
-                  on:click={() => onSelectCustomer(customer)}
-                  class="btn btn-sm btn-secondary edit"
-                >
-                  <i class="icon">✎</i> Edit
-                </button>
-                <button
-                  on:click={() => handleDeleteCustomer(customer.id)}
-                  class="btn btn-sm btn-danger delete"
-                >
-                  <i class="icon">🗑️</i> Delete
-                </button>
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+    <div class="customers-grid">
+      {#each customers as customer}
+        <div class="customer-card card">
+          <div class="card-body">
+            <div class="customer-header mb-4">
+              <div class="customer-avatar">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+              </div>
+              <div class="customer-info">
+                <h3 class="customer-name">{customer.name}</h3>
+                <div class="company-type badge {customer.companyType === 'oy' ? 'badge-info' : 'badge-warning'}">
+                  {customer.companyType.toUpperCase()}
+                </div>
+              </div>
+            </div>
+            
+            <div class="customer-details">
+              {#if customer.email}
+                <div class="detail-item">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                    <polyline points="22,6 12,13 2,6"/>
+                  </svg>
+                  <span class="text-sm text-gray-600">{customer.email}</span>
+                </div>
+              {/if}
+              {#if customer.phone}
+                <div class="detail-item">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                  </svg>
+                  <span class="text-sm text-gray-600">{customer.phone}</span>
+                </div>
+              {/if}
+              {#if customer.address}
+                <div class="detail-item">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                    <circle cx="12" cy="10" r="3"/>
+                  </svg>
+                  <span class="text-sm text-gray-600">{customer.address}</span>
+                </div>
+              {/if}
+            </div>
+          </div>
+          
+          <div class="card-footer">
+            <div class="customer-actions flex gap-3">
+              <button class="btn btn-primary btn-sm flex-1" on:click={() => handleCalculation(customer)}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14,2 14,8 20,8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+                Laskuta
+              </button>
+              <button class="btn btn-danger btn-sm" on:click={() => handleDelete(customer.id)} title="Poista asiakas">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3,6 5,6 21,6"/>
+                  <path d="m19,6v14a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6m3,0V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2v2"/>
+                  <line x1="10" y1="11" x2="10" y2="17"/>
+                  <line x1="14" y1="11" x2="14" y2="17"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      {/each}
     </div>
   {/if}
 </div>
 
 <style>
-  .customer-list {
-    width: 100%;
-    max-width: 100%; /* Changed from 1300px to 100% to allow full width expansion */
-    margin: 0 auto;
+  .customers-section {
+    margin-top: var(--spacing-8);
   }
 
-  .header {
+  .section-header {
     display: flex;
+    align-items: center;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--spacing-lg);
-    padding-bottom: var(--spacing-sm);
-    border-bottom: 2px solid var(--primary-light);
+    margin-bottom: var(--spacing-6);
   }
 
-  h2 {
+  .section-header h2 {
     margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: var(--primary-dark);
+    color: var(--color-gray-900);
   }
 
-  .add-button {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-weight: 600;
-    transition: transform 0.1s ease;
+  .customer-count {
+    font-size: var(--font-size-sm);
   }
 
-  .add-button:hover {
-    transform: translateY(-2px);
-  }
-
-  .table-container {
-    overflow-x: auto;
-    border-radius: var(--border-radius);
-    box-shadow: var(--shadow-md);
-    background-color: white;
-    margin-bottom: 20px;
-    min-width: 100%; /* Ensure minimum width is 100% */
-  }
-
-  table {
-    width: 100%;
-    margin-bottom: 0;
-    border-collapse: separate;
-    border-spacing: 0;
-    font-size: 0.9rem;
-    table-layout: auto; /* Allow table to naturally size based on content */
-    min-width: 1200px; /* Set a minimum width to prevent columns from getting too narrow */
-  }
-
-  th {
-    position: sticky;
-    top: 0;
-    padding: 0.75rem 0.8rem; /* Increased horizontal padding for better readability */
-    font-weight: 600;
-    border-bottom: 2px solid var(--border-color);
-    background-color: #f8f9fa;
-    color: var(--text-light);
-    text-transform: uppercase;
-    white-space: nowrap;
-    letter-spacing: 0.5px;
-    transition: background-color 0.2s ease;
-  }
-
-  th:hover {
-    background-color: #f0f0f0;
-  }
-
-  tbody tr {
-    transition: all 0.2s ease;
-  }
-
-  tr:hover td {
-    background-color: rgba(0, 102, 204, 0.05);
-  }
-
-  tr:last-child td {
-    border-bottom: none;
-  }
-
-  td {
-    padding: 0.75rem 0.5rem;
-    border-bottom: 1px solid #eee;
-    vertical-align: middle;
-  }
-
-  .customer-name {
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-
-  .icon-wrapper {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    background-color: var(--primary-light);
-    border-radius: 50%;
-    color: white;
-    font-size: 0.9rem;
-  }
-
-  .actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 0.5rem;
-    white-space: nowrap;
-  }
-
-  .btn-sm {
-    padding: 0.35rem 0.65rem;
-    font-size: 0.8rem;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-  }
-
-  .btn-sm:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  }
-
-  .btn-sm.invoice {
-    background-color: var(--primary-color);
-    color: white;
-  }
-
-  .btn-sm.invoice:hover {
-    background-color: var(--primary-dark);
-  }
-
-  .btn-sm.edit {
-    background-color: #f8f9fa;
-    border: 1px solid #ddd;
-  }
-
-  .btn-sm.edit:hover {
-    background-color: #e9ecef;
-  }
-
-  .btn-sm.delete {
-    background-color: white;
-    color: var(--error-color);
-    border: 1px solid #ffcdd2;
-  }
-
-  .btn-sm.delete:hover {
-    background-color: #ffebee;
-  }
-
-  .tag {
-    display: inline-block;
-    padding: 0.25rem 0.65rem;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-align: center;
-    letter-spacing: 0.5px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  }
-
-  .tag-blue {
-    background-color: rgba(0, 102, 204, 0.1);
-    color: var(--primary-color);
-    border: 1px solid rgba(0, 102, 204, 0.2);
-  }
-
-  .tag-green {
-    background-color: rgba(40, 167, 69, 0.1);
-    color: var(--success-color);
-    border: 1px solid rgba(40, 167, 69, 0.2);
-  }
-
-  .amount {
-    font-weight: bold;
-  }
-
-  .subtotal-margin {
-    color: #155724;
-    background-color: rgba(40, 167, 69, 0.05);
-    padding: 3px 8px;
-    border-radius: 4px;
-  }
-
-  .year-end.active {
-    color: var(--success-color);
-    background-color: rgba(40, 167, 69, 0.05);
-    padding: 3px 8px;
-    border-radius: 4px;
-  }
-
-  .year-end.inactive {
-    color: var(--text-light);
-  }
-
-  .inactive-note {
-    display: block;
-    font-size: 0.75rem;
-    color: var(--text-light);
-    font-style: italic;
-    opacity: 0.8;
-    font-weight: normal;
-  }
-
-  .date {
-    display: inline-block;
-    padding: 0.15rem 0.4rem;
-    border-radius: 4px;
-    font-size: 0.8rem;
-  }
-
-  .valid-date {
-    background-color: rgba(40, 167, 69, 0.1);
-    color: var(--success-color);
-    border: 1px solid rgba(40, 167, 69, 0.2);
-  }
-
-  .expired-date {
-    background-color: rgba(220, 53, 69, 0.1);
-    color: var(--error-color);
-    border: 1px solid rgba(220, 53, 69, 0.2);
-  }
-
-  .date-range {
-    font-size: 0.8rem;
-    padding: 4px 8px;
-    border-radius: 4px;
-    white-space: nowrap;
-    display: block;
-    max-width: 180px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .date-range.active {
-    background-color: rgba(40, 167, 69, 0.1);
-    color: var(--success-color);
-    border: 1px solid rgba(40, 167, 69, 0.2);
-  }
-
-  .date-range.inactive {
-    background-color: rgba(108, 117, 125, 0.1);
-    color: var(--text-light);
-    border: 1px solid rgba(108, 117, 125, 0.2);
-  }
-
-  /* States */
-  .loading-state,
-  .error-state,
   .empty-state {
-    padding: 3rem 2rem;
-    text-align: center;
-    background-color: white;
-    border-radius: var(--border-radius);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .spinner {
-    width: 50px;
-    height: 50px;
-    border: 4px solid rgba(0, 102, 204, 0.1);
-    border-top-color: var(--primary-color);
-    border-radius: 50%;
-    animation: spinner 0.8s linear infinite;
-    margin: 0 auto 1.5rem;
-  }
-
-  @keyframes spinner {
-    to {
-      transform: rotate(360deg);
-    }
+    padding: var(--spacing-16) var(--spacing-8);
   }
 
   .empty-icon {
-    font-size: 3.5rem;
-    margin-bottom: 1.5rem;
-    opacity: 0.5;
-    color: var(--primary-color);
+    color: var(--color-gray-400);
+    margin-bottom: var(--spacing-4);
   }
 
-  .error-icon {
-    font-size: 2.5rem;
-    margin-bottom: 1rem;
-    color: var(--error-color);
+  .customers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: var(--spacing-6);
   }
 
-  .empty {
-    color: var(--text-light);
-    font-size: 1.1rem;
-    margin-bottom: 1.5rem;
+  .customer-card {
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
   }
 
-  .retry-btn {
-    margin-top: 1.5rem;
+  .customer-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
   }
 
-  .error {
-    color: var(--error-color);
-    font-weight: 500;
+  .customer-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
   }
 
-  .icon {
-    display: inline-block;
+  .customer-avatar {
+    width: 48px;
+    height: 48px;
+    background-color: var(--color-primary-light);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-primary);
+    flex-shrink: 0;
   }
 
-  .text-right {
-    text-align: right;
+  .customer-info {
+    flex: 1;
+    min-width: 0;
   }
 
-  /* Responsiivisuus taulukossa - näkyy paremmin pienemmilläkin näytöillä */
-  @media (max-width: 1200px) {
-    th,
-    td {
-      padding: 0.5rem 0.4rem;
-      font-size: 0.85rem;
+  .customer-name {
+    margin: 0 0 var(--spacing-1) 0;
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    color: var(--color-gray-900);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .customer-details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-2);
+    margin-bottom: var(--spacing-4);
+  }
+
+  .detail-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-2);
+    color: var(--color-gray-600);
+  }
+
+  .detail-item svg {
+    flex-shrink: 0;
+    color: var(--color-gray-400);
+  }
+
+  .detail-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .customer-actions {
+    width: 100%;
+  }
+
+  @media (max-width: 768px) {
+    .customers-grid {
+      grid-template-columns: 1fr;
     }
-
-    .actions {
+    
+    .section-header {
       flex-direction: column;
-      gap: 0.3rem;
-    }
-
-    .btn-sm {
-      padding: 0.3rem 0.5rem;
-      font-size: 0.75rem;
+      align-items: flex-start;
+      gap: var(--spacing-2);
     }
   }
 </style>
