@@ -36,6 +36,8 @@
     isFirstMonth: boolean;
     yearEndInstallmentNumber: number;
     yearEndTotalInstallments: number;
+    // Add option to ignore year-end calculations
+    ignoreYearEndCalculations: boolean;
   }
 
   interface InvoiceCalculation {
@@ -80,11 +82,55 @@
   export let calculationParams: CalculationParameters;
   export let calculationResult: InvoiceCalculation | null;
   export let invoiceDescription: string;
+  export let invoiceNotes: string;
   export let invoiceStatus: 'draft' | 'sent' | 'paid';
   export let pricingSettings: PricingSettings;
   export let isEditMode: boolean = false;
+  // Add smart view mode props
+  export let isViewMode: boolean = false;
+  export let originalCalculationParams: CalculationParameters | null = null;
+  export let selectedInvoice: any = null;
 
   const dispatch = createEventDispatcher();
+
+  // Track if calculation parameters have changed from original
+  let hasCalculationParamsChanged = false;
+  
+  // Watch for changes in calculation parameters to detect when we need to switch modes
+  $: if (isViewMode && originalCalculationParams) {
+    hasCalculationParamsChanged = checkCalculationParamsChanged();
+  }
+
+  function checkCalculationParamsChanged(): boolean {
+    if (!originalCalculationParams) return false;
+    
+    // Check key calculation parameters that would require recalculation
+    const keyParams: (keyof CalculationParameters)[] = [
+      'hourlyRate', 'accountingSoftware', 'employees', 'salaryPaymentPrice',
+      'totalHoursLastThreeMonths', 'billingPeriodStart', 'billingPeriodEnd',
+      'previousYearInvoicing', 'isFirstMonth', 'yearEndInstallmentNumber',
+      'yearEndTotalInstallments', 'ignoreYearEndCalculations'
+    ];
+    
+    for (const param of keyParams) {
+      if (calculationParams[param] !== originalCalculationParams[param]) {
+        return true;
+      }
+    }
+    
+    // Check margin factors
+    const marginKeys: (keyof typeof calculationParams.marginFactors)[] = [
+      'foreignTrade', 'cashOperations', 'ecommerce', 'import', 'assetsInBalance',
+      'investments', 'limitedCompany', 'vatLiable', 'manualBankStatement'
+    ];
+    for (const key of marginKeys) {
+      if (calculationParams.marginFactors[key] !== originalCalculationParams.marginFactors[key]) {
+        return true;
+      }
+    }
+    
+    return false;
+  }
 
   // Initialize default billing period (next 2 months) if not set
   $: if (calculationParams && (!calculationParams.billingPeriodStart || !calculationParams.billingPeriodEnd)) {
@@ -150,9 +196,10 @@
                                     calculationParams.yearEndInstallmentNumber <= calculationParams.yearEndTotalInstallments;
     
     // Include year-end accounting if:
-    // 1. We're in the traditional period (for both single payments and installments), OR
-    // 2. We're using installments with a valid installment number (allows installments outside traditional period)
-    if (isInTraditionalPeriod || (isUsingInstallments && hasValidInstallmentNumber)) {
+    // 1. User hasn't chosen to ignore year-end calculations, AND
+    // 2. We're in the traditional period (for both single payments and installments), OR
+    // 3. We're using installments with a valid installment number (allows installments outside traditional period)
+    if (!calculationParams.ignoreYearEndCalculations && (isInTraditionalPeriod || (isUsingInstallments && hasValidInstallmentNumber))) {
       const baseYearEndPrice = calculationParams.previousYearInvoicing / 12;
       const minimum = customer.companyType === 'oy' 
         ? pricingSettings.yearEndMinimumLimitedCompany 
@@ -192,6 +239,7 @@
   function handleSaveInvoice() {
     dispatch('save-invoice', {
       description: invoiceDescription,
+      notes: invoiceNotes,
       status: invoiceStatus
     });
   }
@@ -199,6 +247,7 @@
   function handleUpdateInvoice() {
     dispatch('update-invoice', {
       description: invoiceDescription,
+      notes: invoiceNotes,
       status: invoiceStatus
     });
   }
@@ -227,14 +276,63 @@
 </script>
 
 {#if show && selectedCustomer}
+  <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
   <div class="modal-overlay" role="button" aria-label="Close modal" tabindex="0" on:click={handleClose} on:keydown={handleModalKeydown}>
     <div class="modal calculation-modal" role="document" on:click|stopPropagation on:keydown={handleModalKeydown}>
-      <h2>{isEditMode ? 'Muokkaa Laskua' : 'Laskutus'} - {selectedCustomer.name}</h2>
+      <!-- Smart view mode header with context -->
+      {#if isViewMode && selectedInvoice}
+        <div class="view-mode-header">
+          <h2>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="view-icon">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            Tarkastele Laskua - {selectedCustomer.name}
+          </h2>
+          <div class="invoice-context">
+            <span class="invoice-id">Lasku #{selectedInvoice.id.slice(-8)}</span>
+            <span class="invoice-date">Luotu: {new Date(selectedInvoice.createdDate).toLocaleDateString()}</span>
+          </div>
+          {#if hasCalculationParamsChanged}
+            <div class="params-changed-warning">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+              </svg>
+              Laskutusparametrit muuttuneet - vaatii uudelleenlaskentaa
+              <button class="switch-to-edit-btn" on:click={() => dispatch('switch-to-edit')}>
+                Siirry muokkaustilaan
+              </button>
+            </div>
+          {/if}
+        </div>
+      {:else}
+        <h2>{isEditMode ? 'Muokkaa Laskua' : 'Laskutus'} - {selectedCustomer.name}</h2>
+      {/if}
       
       <!-- Calculation Parameters Form -->
       <div class="calculation-form">
         <h3>Laskutusparametrit</h3>
-        
+
+        <!-- Smart view mode: Show existing calculation results first if available -->
+        {#if isViewMode && calculationResult && !hasCalculationParamsChanged}
+          <div class="existing-calculation">
+            <h4>Nykyinen laskutustulos</h4>
+            <div class="result-row">
+              <span>Laskutuskausi:</span>
+              <span>{calculationParams.billingPeriodStart} - {calculationParams.billingPeriodEnd}</span>
+            </div>
+            <div class="result-row">
+              <span>Hinta (sis. ALV):</span>
+              <span class="price-highlight">{calculationResult.priceWithVat.toFixed(2)} €</span>
+            </div>
+            <div class="view-mode-actions">
+              <button class="secondary-btn" on:click={() => dispatch('switch-to-edit')}>
+                Muokkaa parametreja
+              </button>
+            </div>
+          </div>
+        {/if}
+
         <div class="form-group">
           <label for="hourly-rate">Tuntihinta (€):</label>
           <input id="hourly-rate" bind:value={calculationParams.hourlyRate} type="number" step="0.01">
@@ -297,6 +395,17 @@
               Edellisen vuoden laskutus ei voi olla negatiivinen
             </div>
           {/if}
+        </div>
+
+        <!-- Add ignore year-end calculations option -->
+        <div class="form-group">
+          <label class="checkbox-option">
+            <input type="checkbox" bind:checked={calculationParams.ignoreYearEndCalculations}>
+            <span class="checkbox-text">
+              <strong>Ensimmäinen vuosi - ei tilinpäätöslaskutusta</strong>
+              <small>Jätä tilinpäätöstyöt pois laskutuksesta (sopii uusille asiakkaille)</small>
+            </span>
+          </label>
         </div>
 
         <!-- Add year-end accounting status indicator -->
@@ -421,10 +530,22 @@
         
         <!-- Invoice saving/updating form -->
         <div class="save-invoice-form">
-          <h3>{isEditMode ? 'Päivitä Lasku' : 'Tallenna Lasku'}</h3>
+          <h3>
+            {#if isViewMode && selectedInvoice}
+              Päivitä Laskun Tietoja
+            {:else if isEditMode}
+              Päivitä Lasku
+            {:else}
+              Tallenna Lasku
+            {/if}
+          </h3>
           <div class="form-group">
             <label for="invoice-description">Laskun kuvaus:</label>
             <input id="invoice-description" type="text" bind:value={invoiceDescription} placeholder="Esim: Kirjanpito maaliskuu 2025">
+          </div>
+          <div class="form-group">
+            <label for="invoice-notes">Muistiinpanot:</label>
+            <textarea id="invoice-notes" bind:value={invoiceNotes} rows="4" placeholder="Lisätietoja, muistiinpanoja tai erityisiä huomautuksia laskusta..."></textarea>
           </div>
           <div class="form-group">
             <label for="invoice-status">Status:</label>
@@ -434,7 +555,20 @@
               <option value="paid">Maksettu</option>
             </select>
           </div>
-          {#if isEditMode}
+          {#if isViewMode && selectedInvoice}
+            <!-- Smart view mode: Always update existing invoice -->
+            <button on:click={handleUpdateInvoice}>Päivitä Tietoja</button>
+            {#if hasCalculationParamsChanged}
+              <div class="calculation-warning">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 16v-4"/>
+                  <path d="M12 8h.01"/>
+                </svg>
+                Huom: Laskutusparametrit ovat muuttuneet. Paina "Laske" uudestaan nähdäksesi päivitetyn tuloksen.
+              </div>
+            {/if}
+          {:else if isEditMode}
             <button on:click={handleUpdateInvoice}>Päivitä Lasku</button>
           {:else}
             <button on:click={handleSaveInvoice}>Tallenna Lasku</button>
@@ -493,7 +627,7 @@
     font-weight: bold;
   }
 
-  .form-group input, .form-group select {
+  .form-group input, .form-group select, .form-group textarea {
     width: 100%;
     padding: 8px;
     border: 1px solid #ddd;
@@ -646,5 +780,159 @@
 
   .installment-note {
     margin-bottom: 5px;
+  }
+
+  .checkbox-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    background-color: #f9f9f9;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .checkbox-option:hover {
+    background-color: #f0f0f0;
+  }
+
+  .checkbox-option input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+    margin-top: 2px;
+  }
+
+  .checkbox-text {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .checkbox-text strong {
+    color: #333;
+    font-size: 14px;
+  }
+
+  .checkbox-text small {
+    color: #666;
+    font-size: 12px;
+    font-weight: normal;
+  }
+
+  .view-mode-header {
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    background-color: #f9f9f9;
+  }
+
+  .view-mode-header h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    margin: 0;
+  }
+
+  .view-icon {
+    color: #007acc;
+  }
+
+  .invoice-context {
+    display: flex;
+    gap: 15px;
+    margin-top: 10px;
+    font-size: 14px;
+    color: #666;
+  }
+
+  .params-changed-warning {
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid #d9534f;
+    border-radius: 6px;
+    background-color: #f9f9f9;
+    color: #d9534f;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .params-changed-warning svg {
+    flex-shrink: 0;
+  }
+
+  .switch-to-edit-btn {
+    padding: 5px 10px;
+    background: #d9534f;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .switch-to-edit-btn:hover {
+    background: #c9302c;
+  }
+
+  .existing-calculation {
+    margin-bottom: 20px;
+    padding: 15px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    background-color: #f9f9f9;
+  }
+
+  .existing-calculation h4 {
+    margin: 0 0 10px;
+    font-size: 16px;
+    color: #333;
+  }
+
+  .price-highlight {
+    font-weight: bold;
+    color: #007acc;
+  }
+
+  .view-mode-actions {
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .secondary-btn {
+    padding: 5px 10px;
+    background: #007acc;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+  }
+
+  .secondary-btn:hover {
+    background: #005a9e;
+  }
+
+  .calculation-warning {
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid #f0ad4e;
+    border-radius: 6px;
+    background-color: #fdf6e3;
+    color: #8a6d3b;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+  }
+
+  .calculation-warning svg {
+    flex-shrink: 0;
+    color: #f0ad4e;
   }
 </style>

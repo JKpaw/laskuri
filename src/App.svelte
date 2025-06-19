@@ -52,6 +52,8 @@
     // Add year-end installment support
     yearEndInstallmentNumber: number; // Which installment (1, 2, 3, etc.)
     yearEndTotalInstallments: number; // Total number of installments
+    // Add option to ignore year-end calculations
+    ignoreYearEndCalculations: boolean;
   }
 
   interface InvoiceCalculation {
@@ -103,6 +105,7 @@
     calculationResult: InvoiceCalculation;
     createdDate: string;
     description: string;
+    notes: string;
     status: 'draft' | 'sent' | 'paid';
   }
 
@@ -120,7 +123,11 @@
   let pricingStorageLocation = '';
   let invoicesStorageLocation = '';
   let invoiceDescription = '';
+  let invoiceNotes = '';
   let invoiceStatus: 'draft' | 'sent' | 'paid' = 'draft';
+  // Add view mode tracking
+  let isViewMode = false;
+  let originalCalculationParams: CalculationParameters | null = null;
 
   // Simplified new customer form data - only basic info
   let newCustomer: Customer = {
@@ -158,7 +165,8 @@
     yearEndAccountingEndDate: '2025-04-30',
     isFirstMonth: false,
     yearEndInstallmentNumber: 1,
-    yearEndTotalInstallments: 1
+    yearEndTotalInstallments: 1,
+    ignoreYearEndCalculations: false
   };
 
   // Default pricing settings
@@ -396,11 +404,12 @@
       yearEndAccountingEndDate: yearEndDates.endDate,
       isFirstMonth: false,
       yearEndInstallmentNumber: 1,
-      yearEndTotalInstallments: pricingSettings.yearEndInstallments
+      yearEndTotalInstallments: pricingSettings.yearEndInstallments,
+      ignoreYearEndCalculations: false
     };
   }
 
-  function saveInvoice(description: string, status: 'draft' | 'sent' | 'paid') {
+  function saveInvoice(description: string, notes: string, status: 'draft' | 'sent' | 'paid') {
     if (!selectedCustomer || !calculationResult) return;
 
     const invoice: SavedInvoice = {
@@ -410,6 +419,7 @@
       calculationResult: { ...calculationResult },
       createdDate: new Date().toISOString(),
       description,
+      notes,
       status
     };
 
@@ -444,10 +454,14 @@
     calculationParams = { ...invoice.calculationParams };
     calculationResult = { ...invoice.calculationResult };
     invoiceDescription = invoice.description;
+    invoiceNotes = invoice.notes;
     invoiceStatus = invoice.status;
     showInvoiceList = false;
     showInvoiceCalculation = true;
     showEditInvoice = false;
+    // Enable smart view mode
+    isViewMode = true;
+    originalCalculationParams = { ...invoice.calculationParams };
   }
 
   function editInvoice(invoice: SavedInvoice) {
@@ -456,13 +470,17 @@
     calculationParams = { ...invoice.calculationParams };
     calculationResult = null; // Clear result so user can recalculate
     invoiceDescription = invoice.description;
+    invoiceNotes = invoice.notes;
     invoiceStatus = invoice.status;
     showInvoiceList = false;
     showInvoiceCalculation = true;
     showEditInvoice = true;
+    // Disable view mode for full edit
+    isViewMode = false;
+    originalCalculationParams = null;
   }
 
-  function updateInvoice(description: string, status: 'draft' | 'sent' | 'paid') {
+  function updateInvoice(description: string, notes: string, status: 'draft' | 'sent' | 'paid') {
     if (!selectedInvoice || !selectedCustomer || !calculationResult) return;
 
     const updatedInvoice: SavedInvoice = {
@@ -470,6 +488,7 @@
       calculationParams: { ...calculationParams },
       calculationResult: { ...calculationResult },
       description,
+      notes,
       status
     };
 
@@ -545,16 +564,28 @@
   }
 
   function handleInvoiceCalculationSaveInvoice(event: CustomEvent) {
-    saveInvoice(event.detail.description, event.detail.status);
+    saveInvoice(event.detail.description, event.detail.notes, event.detail.status);
   }
 
   function handleInvoiceCalculationUpdateInvoice(event: CustomEvent) {
-    updateInvoice(event.detail.description, event.detail.status);
+    updateInvoice(event.detail.description, event.detail.notes, event.detail.status);
   }
 
   function handleInvoiceCalculationClose() {
     showInvoiceCalculation = false;
     showEditInvoice = false;
+    // Reset view mode tracking
+    isViewMode = false;
+    originalCalculationParams = null;
+    selectedInvoice = null;
+  }
+
+  // Add new handler for switching from view to edit mode
+  function handleInvoiceCalculationSwitchToEdit() {
+    showEditInvoice = true;
+    isViewMode = false;
+    originalCalculationParams = null;
+    calculationResult = null; // Clear to force recalculation
   }
 </script>
 
@@ -607,13 +638,18 @@
     bind:calculationParams
     bind:calculationResult
     bind:invoiceDescription
+    bind:invoiceNotes
     bind:invoiceStatus
     {pricingSettings}
     isEditMode={showEditInvoice}
+    {isViewMode}
+    {originalCalculationParams}
+    {selectedInvoice}
     on:calculate={handleInvoiceCalculationCalculate}
     on:save-invoice={handleInvoiceCalculationSaveInvoice}
     on:update-invoice={handleInvoiceCalculationUpdateInvoice}
     on:close={handleInvoiceCalculationClose}
+    on:switch-to-edit={handleInvoiceCalculationSwitchToEdit}
   />
 </main>
 
